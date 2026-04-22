@@ -10,6 +10,8 @@ pub const proxy = @import("proxy");
 pub const request_queue = @import("request_queue");
 pub const cache_router = @import("cache_router");
 pub const metrics = @import("metrics");
+pub const health = @import("health");
+pub const logger = @import("logger");
 
 pub const HealthChecker = struct {
     allocator: std.mem.Allocator,

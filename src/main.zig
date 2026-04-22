@@ -20,6 +20,8 @@ pub fn main(init: std.process.Init) !void {
     const listen_addr = shunt.cli.resolveListenAddr(cli_config, app_config.listen_addr);
     const health_check_interval = shunt.cli.resolveHealthCheckInterval(cli_config, app_config.health_check_interval_ms);
     const log_level = shunt.cli.resolveLogLevel(cli_config, app_config.log_level);
+    const log_format = shunt.cli.resolveLogFormat(cli_config, app_config.logging_format);
+    const log_output = shunt.cli.resolveLogOutput(cli_config, app_config.logging_output);
     const max_buffered = shunt.cli.resolveMaxBufferedRequests(cli_config, app_config.max_buffered_requests);
     const buffered_timeout = shunt.cli.resolveBufferedRequestTimeout(cli_config, app_config.buffered_request_timeout_ms);
 
@@ -55,6 +57,15 @@ pub fn main(init: std.process.Init) !void {
 
     var metrics_instance = shunt.metrics.Metrics.init();
 
+    const logger_level = shunt.logger.Level.fromString(log_level) orelse .info;
+    const logger_format = shunt.logger.Format.fromString(log_format) orelse .json;
+    const logger_output = shunt.logger.Output.fromString(log_output) orelse .stdout;
+    var logger_instance = shunt.logger.Logger.init(.{
+        .level = logger_level,
+        .format = logger_format,
+        .output = logger_output,
+    });
+
     var health_checker = shunt.HealthChecker{
         .allocator = allocator,
         .pool = &pool,
@@ -70,15 +81,21 @@ pub fn main(init: std.process.Init) !void {
         t.detach();
     }
 
-    var server_proxy = shunt.proxy.ReverseProxy.init(allocator, &pool, &router, &metrics_instance);
+    const start_ts = std.Io.Timestamp.now(io, .awake);
+    var kube_health_checker = shunt.health.KubeHealthChecker.init(&pool, start_ts.toNanoseconds());
+
+    var server_proxy = shunt.proxy.ReverseProxy.init(allocator, &pool, &router, &metrics_instance, &logger_instance);
     server_proxy.listen_addr = listen_addr;
     server_proxy.req_queue = &req_queue;
+    server_proxy.kube_health_checker = &kube_health_checker;
 
-    std.log.info("llm-lb starting on {s} with {} backend(s), health check interval {}ms, log level {s}, queue capacity {} timeout {}ms", .{
+    std.log.info("llm-lb starting on {s} with {} backend(s), health check interval {}ms, log level {s} format {s} output {s}, queue capacity {} timeout {}ms", .{
         listen_addr,
         pool.backends.items.len,
         health_check_interval,
         log_level,
+        log_format,
+        log_output,
         max_buffered,
         buffered_timeout,
     });

@@ -49,6 +49,19 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const health_mod = b.createModule(.{
+        .root_source_file = b.path("src/health.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    health_mod.addImport("backend_pool", backend_pool_mod);
+
+    const logger_mod = b.createModule(.{
+        .root_source_file = b.path("src/logger.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const proxy_mod = b.createModule(.{
         .root_source_file = b.path("src/proxy.zig"),
         .target = target,
@@ -59,6 +72,8 @@ pub fn build(b: *std.Build) void {
     proxy_mod.addImport("request_queue", request_queue_mod);
     proxy_mod.addImport("cache_router", cache_router_mod);
     proxy_mod.addImport("metrics", metrics_mod);
+    proxy_mod.addImport("health", health_mod);
+    proxy_mod.addImport("logger", logger_mod);
 
     const root_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
@@ -73,6 +88,8 @@ pub fn build(b: *std.Build) void {
     root_mod.addImport("request_queue", request_queue_mod);
     root_mod.addImport("cache_router", cache_router_mod);
     root_mod.addImport("metrics", metrics_mod);
+    root_mod.addImport("health", health_mod);
+    root_mod.addImport("logger", logger_mod);
 
     const shunt_mod = b.addModule("shunt", .{
         .root_source_file = b.path("src/root.zig"),
@@ -87,6 +104,8 @@ pub fn build(b: *std.Build) void {
     shunt_mod.addImport("request_queue", request_queue_mod);
     shunt_mod.addImport("cache_router", cache_router_mod);
     shunt_mod.addImport("metrics", metrics_mod);
+    shunt_mod.addImport("health", health_mod);
+    shunt_mod.addImport("logger", logger_mod);
 
     const exe = b.addExecutable(.{
         .name = "shunt",
@@ -147,6 +166,14 @@ pub fn build(b: *std.Build) void {
         .root_module = metrics_mod,
     });
 
+    const health_tests = b.addTest(.{
+        .root_module = health_mod,
+    });
+
+    const logger_tests = b.addTest(.{
+        .root_module = logger_mod,
+    });
+
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
@@ -159,9 +186,11 @@ pub fn build(b: *std.Build) void {
     test_unit_step.dependOn(&b.addRunArtifact(cli_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(proxy_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(metrics_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(metrics_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(health_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(logger_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
 
     const integration_mod = b.createModule(.{
         .root_source_file = b.path("tests/integration.zig"),
@@ -196,6 +225,8 @@ test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
     test_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
     test_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
     test_step.dependOn(&b.addRunArtifact(metrics_tests).step);
+    test_step.dependOn(&b.addRunArtifact(health_tests).step);
+    test_step.dependOn(&b.addRunArtifact(logger_tests).step);
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
     test_step.dependOn(&b.addRunArtifact(integration_tests).step);
     test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
@@ -216,6 +247,8 @@ test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
     ci_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
     ci_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
     ci_step.dependOn(&b.addRunArtifact(metrics_tests).step);
+    ci_step.dependOn(&b.addRunArtifact(health_tests).step);
+    ci_step.dependOn(&b.addRunArtifact(logger_tests).step);
     ci_step.dependOn(&b.addRunArtifact(exe_tests).step);
     ci_step.dependOn(&b.addRunArtifact(integration_tests).step);
     ci_step.dependOn(&b.addRunArtifact(fuzz_tests).step);

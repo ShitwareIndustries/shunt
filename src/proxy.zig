@@ -8,6 +8,8 @@ const openai = @import("openai");
 const request_queue = @import("request_queue");
 const cache_router = @import("cache_router");
 const metrics_mod = @import("metrics");
+const health = @import("health");
+const logger_mod = @import("logger");
 
 pub const ReverseProxy = struct {
     allocator: mem.Allocator,
@@ -16,8 +18,10 @@ pub const ReverseProxy = struct {
     listen_addr: []const u8,
     req_queue: ?*request_queue.RequestQueue,
     metrics: *metrics_mod.Metrics,
+    kube_health_checker: ?*health.KubeHealthChecker,
+    logger: *logger_mod.Logger,
 
-    pub fn init(allocator: mem.Allocator, pool: *backend_pool.BackendPool, router: *openai.ModelRouter, metrics: *metrics_mod.Metrics) ReverseProxy {
+    pub fn init(allocator: mem.Allocator, pool: *backend_pool.BackendPool, router: *openai.ModelRouter, metrics: *metrics_mod.Metrics, logger: *logger_mod.Logger) ReverseProxy {
         return .{
             .allocator = allocator,
             .pool = pool,
@@ -25,6 +29,8 @@ pub const ReverseProxy = struct {
             .listen_addr = "0.0.0.0:8080",
             .req_queue = null,
             .metrics = metrics,
+            .kube_health_checker = null,
+            .logger = logger,
         };
     }
 
@@ -81,6 +87,12 @@ pub const ReverseProxy = struct {
             .health => {
                 try self.handleHealthRequest(request);
             },
+            .healthz => {
+                try self.handleHealthzRequest(io, request);
+            },
+            .readyz => {
+                try self.handleReadyzRequest(request);
+            },
             .metrics => {
                 try self.handleMetricsRequest(io, request);
             },
@@ -105,6 +117,49 @@ pub const ReverseProxy = struct {
         const status: http.Status = if (has_backends) .ok else .service_unavailable;
         try request.respond(body, .{
             .status = status,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "application/json" },
+            },
+        });
+    }
+
+    fn handleHealthzRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
+        const checker = self.kube_health_checker orelse {
+            request.respond("{\"status\":\"ok\",\"uptime_seconds\":0}", .{
+                .status = .ok,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "application/json" },
+                },
+            }) catch {};
+            return;
+        };
+        const now_ns = std.Io.Timestamp.now(io, .awake).toNanoseconds();
+        const body = try checker.livenessResponse(self.allocator, now_ns);
+        defer self.allocator.free(body);
+        try request.respond(body, .{
+            .status = .ok,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "application/json" },
+            },
+        });
+    }
+
+    fn handleReadyzRequest(self: *ReverseProxy, request: *http.Server.Request) !void {
+        const checker = self.kube_health_checker orelse {
+            const body = try health.KubeHealthChecker.readinessResponseNull(self.allocator);
+            defer self.allocator.free(body.body);
+            try request.respond(body.body, .{
+                .status = body.status,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "application/json" },
+                },
+            });
+            return;
+        };
+        const result = try checker.readinessResponse(self.allocator);
+        defer self.allocator.free(result.body);
+        try request.respond(result.body, .{
+            .status = result.status,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json" },
             },

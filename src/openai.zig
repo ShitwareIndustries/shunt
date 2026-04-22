@@ -254,6 +254,16 @@ pub fn routePath(target: []const u8) ?Route {
     {
         return .metrics;
     }
+    if (mem.eql(u8, target, "/healthz") or
+        mem.startsWith(u8, target, "/healthz?"))
+    {
+        return .healthz;
+    }
+    if (mem.eql(u8, target, "/readyz") or
+        mem.startsWith(u8, target, "/readyz?"))
+    {
+        return .readyz;
+    }
     return null;
 }
 
@@ -263,6 +273,8 @@ pub const Route = enum {
     models,
     health,
     metrics,
+    healthz,
+    readyz,
 };
 
 pub fn buildModelsResponse(allocator: mem.Allocator, router: *ModelRouter) ![]u8 {
@@ -310,6 +322,8 @@ test "routePath matches OpenAI endpoints" {
     try std.testing.expect(routePath("/v1/completions") == .completions);
     try std.testing.expect(routePath("/health") == .health);
     try std.testing.expect(routePath("/metrics") == .metrics);
+    try std.testing.expect(routePath("/healthz") == .healthz);
+    try std.testing.expect(routePath("/readyz") == .readyz);
     try std.testing.expect(routePath("/v1/chat/completions?foo=bar") == .chat_completions);
     try std.testing.expect(routePath("/unknown") == null);
 }

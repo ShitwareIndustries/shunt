@@ -43,6 +43,12 @@ pub fn build(b: *std.Build) void {
     cache_router_mod.addImport("backend_pool", backend_pool_mod);
     openai_mod.addImport("cache_router", cache_router_mod);
 
+    const metrics_mod = b.createModule(.{
+        .root_source_file = b.path("src/metrics.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const proxy_mod = b.createModule(.{
         .root_source_file = b.path("src/proxy.zig"),
         .target = target,
@@ -52,6 +58,7 @@ pub fn build(b: *std.Build) void {
     proxy_mod.addImport("openai", openai_mod);
     proxy_mod.addImport("request_queue", request_queue_mod);
     proxy_mod.addImport("cache_router", cache_router_mod);
+    proxy_mod.addImport("metrics", metrics_mod);
 
     const root_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
@@ -65,6 +72,7 @@ pub fn build(b: *std.Build) void {
     root_mod.addImport("proxy", proxy_mod);
     root_mod.addImport("request_queue", request_queue_mod);
     root_mod.addImport("cache_router", cache_router_mod);
+    root_mod.addImport("metrics", metrics_mod);
 
     const shunt_mod = b.addModule("shunt", .{
         .root_source_file = b.path("src/root.zig"),
@@ -78,6 +86,7 @@ pub fn build(b: *std.Build) void {
     shunt_mod.addImport("proxy", proxy_mod);
     shunt_mod.addImport("request_queue", request_queue_mod);
     shunt_mod.addImport("cache_router", cache_router_mod);
+    shunt_mod.addImport("metrics", metrics_mod);
 
     const exe = b.addExecutable(.{
         .name = "shunt",
@@ -134,6 +143,10 @@ pub fn build(b: *std.Build) void {
         .root_module = cache_router_mod,
     });
 
+    const metrics_tests = b.addTest(.{
+        .root_module = metrics_mod,
+    });
+
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
@@ -146,8 +159,9 @@ pub fn build(b: *std.Build) void {
     test_unit_step.dependOn(&b.addRunArtifact(cli_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(proxy_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
-    test_unit_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
-    test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
+test_unit_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
+test_unit_step.dependOn(&b.addRunArtifact(metrics_tests).step);
+test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
 
     const integration_mod = b.createModule(.{
         .root_source_file = b.path("tests/integration.zig"),
@@ -181,6 +195,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(proxy_tests).step);
     test_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
     test_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
+    test_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
     test_step.dependOn(&b.addRunArtifact(integration_tests).step);
     test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
@@ -200,6 +215,7 @@ pub fn build(b: *std.Build) void {
     ci_step.dependOn(&b.addRunArtifact(proxy_tests).step);
     ci_step.dependOn(&b.addRunArtifact(request_queue_tests).step);
     ci_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
+    ci_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     ci_step.dependOn(&b.addRunArtifact(exe_tests).step);
     ci_step.dependOn(&b.addRunArtifact(integration_tests).step);
     ci_step.dependOn(&b.addRunArtifact(fuzz_tests).step);

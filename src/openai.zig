@@ -249,6 +249,11 @@ pub fn routePath(target: []const u8) ?Route {
     {
         return .health;
     }
+    if (mem.eql(u8, target, "/metrics") or
+        mem.startsWith(u8, target, "/metrics?"))
+    {
+        return .metrics;
+    }
     return null;
 }
 
@@ -257,6 +262,7 @@ pub const Route = enum {
     completions,
     models,
     health,
+    metrics,
 };
 
 pub fn buildModelsResponse(allocator: mem.Allocator, router: *ModelRouter) ![]u8 {
@@ -283,12 +289,27 @@ pub fn buildHealthResponse(allocator: mem.Allocator, healthy: bool) ![]u8 {
     return json.Stringify.valueAlloc(allocator, response, .{});
 }
 
+pub fn buildMetricsResponse(allocator: mem.Allocator, router: *ModelRouter) ![]u8 {
+    const cm = &router.cache_router.metrics;
+    const total: u64 = cm.hits + cm.misses;
+    const response = .{
+        .cache = .{
+            .hits = cm.hits,
+            .misses = cm.misses,
+            .total = total,
+            .hit_rate = cm.hitRate(),
+        },
+    };
+    return json.Stringify.valueAlloc(allocator, response, .{});
+}
+
 test "routePath matches OpenAI endpoints" {
     try std.testing.expect(routePath("/v1/chat/completions") != null);
     try std.testing.expect(routePath("/v1/chat/completions") == .chat_completions);
     try std.testing.expect(routePath("/v1/models") == .models);
     try std.testing.expect(routePath("/v1/completions") == .completions);
     try std.testing.expect(routePath("/health") == .health);
+    try std.testing.expect(routePath("/metrics") == .metrics);
     try std.testing.expect(routePath("/v1/chat/completions?foo=bar") == .chat_completions);
     try std.testing.expect(routePath("/unknown") == null);
 }
@@ -446,6 +467,33 @@ test "buildHealthResponse returns unhealthy for false" {
     defer parsed.deinit();
 
     try std.testing.expectEqualStrings("unhealthy", parsed.value.object.get("status").?.string);
+}
+
+test "buildMetricsResponse returns cache metrics" {
+    var pool = backend_pool.BackendPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4" });
+
+    var router = ModelRouter.init(std.testing.allocator);
+    defer router.deinit();
+
+    try router.addBackendToGroup("gpt-4", 0);
+
+    router.cache_router.metrics.recordHit();
+    router.cache_router.metrics.recordHit();
+    router.cache_router.metrics.recordMiss();
+
+    const resp = try buildMetricsResponse(std.testing.allocator, &router);
+    defer std.testing.allocator.free(resp);
+
+    const parsed = try json.parseFromSlice(json.Value, std.testing.allocator, resp, .{});
+    defer parsed.deinit();
+
+    const cache = parsed.value.object.get("cache").?;
+    try std.testing.expect(cache.object.get("hits").?.integer == 2);
+    try std.testing.expect(cache.object.get("misses").?.integer == 1);
+    try std.testing.expect(cache.object.get("total").?.integer == 3);
 }
 
 test "ModelRouter uses cache-aware routing with prefix hash" {

@@ -7,6 +7,7 @@ const backend_pool = @import("backend_pool");
 const openai = @import("openai");
 const request_queue = @import("request_queue");
 const cache_router = @import("cache_router");
+const metrics_mod = @import("metrics");
 
 pub const ReverseProxy = struct {
     allocator: mem.Allocator,
@@ -14,14 +15,16 @@ pub const ReverseProxy = struct {
     router: *openai.ModelRouter,
     listen_addr: []const u8,
     req_queue: ?*request_queue.RequestQueue,
+    metrics: *metrics_mod.Metrics,
 
-    pub fn init(allocator: mem.Allocator, pool: *backend_pool.BackendPool, router: *openai.ModelRouter) ReverseProxy {
+    pub fn init(allocator: mem.Allocator, pool: *backend_pool.BackendPool, router: *openai.ModelRouter, metrics: *metrics_mod.Metrics) ReverseProxy {
         return .{
             .allocator = allocator,
             .pool = pool,
             .router = router,
             .listen_addr = "0.0.0.0:8080",
             .req_queue = null,
+            .metrics = metrics,
         };
     }
 
@@ -78,6 +81,9 @@ pub const ReverseProxy = struct {
             .health => {
                 try self.handleHealthRequest(request);
             },
+            .metrics => {
+                try self.handleMetricsRequest(io, request);
+            },
         }
     }
 
@@ -105,8 +111,21 @@ pub const ReverseProxy = struct {
         });
     }
 
+    fn handleMetricsRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
+        const body = try self.metrics.formatPrometheus(self.allocator, io);
+        defer self.allocator.free(body);
+        try request.respond(body, .{
+            .status = .ok,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "text/plain; version=0.0.4; charset=utf-8" },
+            },
+        });
+    }
+
     fn handleProxyRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
         const head = &request.head;
+
+        self.metrics.recordRequest(io);
 
         var req_body_buf = std.ArrayList(u8).empty;
         defer req_body_buf.deinit(self.allocator);
@@ -129,14 +148,28 @@ pub const ReverseProxy = struct {
             }
         }
 
+        const now_ts = std.Io.Timestamp.now(io, .awake);
+        const now_ms = now_ts.toMilliseconds();
+
         const backend_entry: ?*backend_pool.BackendEntry = if (model_name) |mn|
-            self.router.selectBackendForModel(mn, self.pool, prefix_hash) orelse self.pool.selectBackend()
+            self.router.selectBackendForModelWithTime(mn, self.pool, prefix_hash, now_ms) orelse self.pool.selectBackend()
         else
             self.pool.selectBackend();
 
         if (backend_entry) |be| {
+            const is_cache_hit = prefix_hash != backend_pool.BackendEntry.NO_AFFINITY and
+                be.prefix_affinity == prefix_hash and
+                !be.isAffinityExpired(now_ms, self.router.cache_router.cache_ttl_ms);
+            if (is_cache_hit) {
+                self.metrics.recordCacheHit(io);
+            } else if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
+                self.metrics.recordCacheMiss(io);
+            }
+
             if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
-                be.updateAffinity(prefix_hash);
+                const ts = std.Io.Timestamp.now(io, .awake);
+                const ms = ts.toMilliseconds();
+                be.updateAffinityWithTimestamp(prefix_hash, ms);
             }
             const backend_uri = std.Uri.parse(be.address) catch {
                 request.respond("invalid backend address", .{
@@ -144,15 +177,21 @@ pub const ReverseProxy = struct {
                 }) catch {};
                 return;
             };
+            const ttft_start = std.Io.Timestamp.now(io, .awake);
             proxyToBackend(self.allocator, io, request, backend_uri, req_body_buf.items, be) catch |err| {
                 log.err("proxy error: {}", .{err});
             };
+            const ttft_end = std.Io.Timestamp.now(io, .awake);
+            const ttft_us: u64 = @intCast(@divTrunc(ttft_end.toNanoseconds() - ttft_start.toNanoseconds(), 1000));
+            if (is_cache_hit) {
+                self.metrics.recordTTFTCacheHit(io, ttft_us);
+            } else {
+                self.metrics.recordTTFTCacheMiss(io, ttft_us);
+            }
             return;
         }
 
         if (self.req_queue) |rq| {
-            const ts = std.Io.Timestamp.now(io, .awake);
-            const now_ms = ts.toMilliseconds();
             const enqueue_result = rq.enqueue(model_name orelse "default", now_ms) catch .overflow;
             if (enqueue_result == .overflow) {
                 const overflow_body = request_queue.RequestQueue.buildOverflowBody(self.allocator) catch unreachable;

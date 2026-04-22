@@ -26,7 +26,10 @@ pub fn main(init: std.process.Init) !void {
     var pool = shunt.backend_pool.BackendPool.init(allocator);
     defer pool.deinit();
 
-    var router = shunt.openai.ModelRouter.init(allocator);
+    var router = if (app_config.cache_enabled)
+        shunt.openai.ModelRouter.initWithTTL(allocator, app_config.cache_ttl_ms)
+    else
+        shunt.openai.ModelRouter.initDisabled(allocator);
     defer router.deinit();
 
     if (app_config.models.items.len > 0) {
@@ -50,6 +53,8 @@ pub fn main(init: std.process.Init) !void {
     var req_queue = shunt.request_queue.RequestQueue.init(allocator, io, max_buffered, buffered_timeout);
     defer req_queue.deinit();
 
+    var metrics_instance = shunt.metrics.Metrics.init();
+
     var health_checker = shunt.HealthChecker{
         .allocator = allocator,
         .pool = &pool,
@@ -65,7 +70,7 @@ pub fn main(init: std.process.Init) !void {
         t.detach();
     }
 
-    var server_proxy = shunt.proxy.ReverseProxy.init(allocator, &pool, &router);
+    var server_proxy = shunt.proxy.ReverseProxy.init(allocator, &pool, &router, &metrics_instance);
     server_proxy.listen_addr = listen_addr;
     server_proxy.req_queue = &req_queue;
 

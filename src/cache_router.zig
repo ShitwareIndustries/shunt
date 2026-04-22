@@ -5,6 +5,15 @@ const backend_pool = @import("backend_pool");
 
 pub const BackendRef = backend_pool.BackendRef;
 
+pub fn buildMetricsResponse(allocator: mem.Allocator, metrics: CacheMetrics) ![]u8 {
+    const response = .{
+        .cache_hits = metrics.hits,
+        .cache_misses = metrics.misses,
+        .cache_hit_rate = metrics.hitRate(),
+    };
+    return json.Stringify.valueAlloc(allocator, response, .{});
+}
+
 pub const CacheMetrics = struct {
     hits: u64 = 0,
     misses: u64 = 0,

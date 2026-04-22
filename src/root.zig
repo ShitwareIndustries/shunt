@@ -9,6 +9,7 @@ pub const cli = @import("cli");
 pub const proxy = @import("proxy");
 pub const request_queue = @import("request_queue");
 pub const cache_router = @import("cache_router");
+pub const metrics = @import("metrics");
 
 pub const HealthChecker = struct {
     allocator: std.mem.Allocator,

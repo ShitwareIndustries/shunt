@@ -133,7 +133,7 @@ pub const ReverseProxy = struct {
             }) catch {};
             return;
         };
-        const now_ns = std.Io.Timestamp.now(io, .awake).toNanoseconds();
+        const now_ns: i64 = @intCast(std.Io.Timestamp.now(io, .awake).toNanoseconds());
         const body = try checker.livenessResponse(self.allocator, now_ns);
         defer self.allocator.free(body);
         try request.respond(body, .{

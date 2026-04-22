@@ -82,7 +82,7 @@ pub fn main(init: std.process.Init) !void {
     }
 
     const start_ts = std.Io.Timestamp.now(io, .awake);
-    var kube_health_checker = shunt.health.KubeHealthChecker.init(&pool, start_ts.toNanoseconds());
+    var kube_health_checker = shunt.health.KubeHealthChecker.init(&pool, @intCast(start_ts.toNanoseconds()));
 
     var server_proxy = shunt.proxy.ReverseProxy.init(allocator, &pool, &router, &metrics_instance, &logger_instance);
     server_proxy.listen_addr = listen_addr;

@@ -13,6 +13,10 @@ pub const Config = struct {
     cache_ttl_ms: u64 = 300000,
     cache_max_entries_per_backend: usize = 256,
     models: std.ArrayList(ModelConfig),
+    auth_enabled: bool = false,
+    auth_default_rate_limit: u64 = 10,
+    auth_default_burst: u64 = 20,
+    auth_keys: std.ArrayList(AuthKeyConfig),
 
     pub const ModelConfig = struct {
         id: []const u8,
@@ -20,14 +24,22 @@ pub const Config = struct {
         model: []const u8,
     };
 
+    pub const AuthKeyConfig = struct {
+        key: []const u8,
+        rate_limit: u64 = 10,
+        burst: u64 = 20,
+    };
+
     pub fn init() Config {
         return .{
             .models = .empty,
+            .auth_keys = .empty,
         };
     }
 
     pub fn deinit(self: *Config, allocator: mem.Allocator) void {
         self.models.deinit(allocator);
+        self.auth_keys.deinit(allocator);
     }
 };
 
@@ -42,8 +54,9 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
     var config = Config.init();
     errdefer config.deinit(allocator);
 
-    var current_section: enum { none, balancer, cache, model } = .none;
+    var current_section: enum { none, balancer, cache, model, auth, auth_key } = .none;
     var pending_model: ?Config.ModelConfig = null;
+    var pending_auth_key: ?Config.AuthKeyConfig = null;
     var lines = mem.splitSequence(u8, content, "\n");
 
     while (lines.next()) |line| {
@@ -74,10 +87,38 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
             current_section = .model;
             continue;
         }
+        if (mem.eql(u8, trimmed, "[auth]")) {
+            if (pending_model) |pm| {
+                try config.models.append(allocator, pm);
+                pending_model = null;
+            }
+            if (pending_auth_key) |ak| {
+                try config.auth_keys.append(allocator, ak);
+                pending_auth_key = null;
+            }
+            current_section = .auth;
+            continue;
+        }
+        if (mem.eql(u8, trimmed, "[[auth.keys]]")) {
+            if (pending_model) |pm| {
+                try config.models.append(allocator, pm);
+                pending_model = null;
+            }
+            if (pending_auth_key) |ak| {
+                try config.auth_keys.append(allocator, ak);
+            }
+            pending_auth_key = .{ .key = "", .rate_limit = config.auth_default_rate_limit, .burst = config.auth_default_burst };
+            current_section = .auth_key;
+            continue;
+        }
         if (mem.startsWith(u8, trimmed, "[")) {
             if (pending_model) |pm| {
                 try config.models.append(allocator, pm);
                 pending_model = null;
+            }
+            if (pending_auth_key) |ak| {
+                try config.auth_keys.append(allocator, ak);
+                pending_auth_key = null;
             }
             current_section = .none;
             continue;
@@ -105,6 +146,10 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     };
                 } else if (mem.eql(u8, key, "log_level")) {
                     config.log_level = unquote(val);
+                } else if (mem.eql(u8, key, "logging_format")) {
+                    config.logging_format = unquote(val);
+                } else if (mem.eql(u8, key, "logging_output")) {
+                    config.logging_output = unquote(val);
                 }
             },
             .cache => {
@@ -139,12 +184,51 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     pending_model.?.model = unquote(val);
                 }
             },
+            .auth => {
+                if (mem.eql(u8, key, "enabled")) {
+                    const v = unquote(val);
+                    if (mem.eql(u8, v, "true")) {
+                        config.auth_enabled = true;
+                    } else if (mem.eql(u8, v, "false")) {
+                        config.auth_enabled = false;
+                    } else {
+                        return ParseError.InvalidValue;
+                    }
+                } else if (mem.eql(u8, key, "default_rate_limit")) {
+                    config.auth_default_rate_limit = std.fmt.parseInt(u64, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
+                } else if (mem.eql(u8, key, "default_burst")) {
+                    config.auth_default_burst = std.fmt.parseInt(u64, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
+                }
+            },
+            .auth_key => {
+                if (pending_auth_key == null) {
+                    pending_auth_key = .{ .key = "", .rate_limit = config.auth_default_rate_limit, .burst = config.auth_default_burst };
+                }
+                if (mem.eql(u8, key, "key")) {
+                    pending_auth_key.?.key = unquote(val);
+                } else if (mem.eql(u8, key, "rate_limit")) {
+                    pending_auth_key.?.rate_limit = std.fmt.parseInt(u64, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
+                } else if (mem.eql(u8, key, "burst")) {
+                    pending_auth_key.?.burst = std.fmt.parseInt(u64, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
+                }
+            },
             .none => {},
         }
     }
 
     if (pending_model) |pm| {
         try config.models.append(allocator, pm);
+    }
+    if (pending_auth_key) |ak| {
+        try config.auth_keys.append(allocator, ak);
     }
 
     for (config.models.items) |m| {
@@ -354,4 +438,80 @@ test "parse TOML config [cache] partial override keeps defaults" {
     try std.testing.expect(cfg.cache_enabled == true);
     try std.testing.expect(cfg.cache_ttl_ms == 120000);
     try std.testing.expect(cfg.cache_max_entries_per_backend == 256);
+}
+
+test "parse TOML config [auth] section" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[auth]
+        \\enabled = true
+        \\default_rate_limit = 20
+        \\default_burst = 40
+        \\
+        \\[[auth.keys]]
+        \\key = "shunt_sk_test123"
+        \\rate_limit = 50
+        \\burst = 100
+        \\
+        \\[[auth.keys]]
+        \\key = "shunt_sk_other456"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.auth_enabled == true);
+    try std.testing.expect(cfg.auth_default_rate_limit == 20);
+    try std.testing.expect(cfg.auth_default_burst == 40);
+    try std.testing.expect(cfg.auth_keys.items.len == 2);
+    try std.testing.expectEqualStrings("shunt_sk_test123", cfg.auth_keys.items[0].key);
+    try std.testing.expect(cfg.auth_keys.items[0].rate_limit == 50);
+    try std.testing.expect(cfg.auth_keys.items[0].burst == 100);
+    try std.testing.expectEqualStrings("shunt_sk_other456", cfg.auth_keys.items[1].key);
+    try std.testing.expect(cfg.auth_keys.items[1].rate_limit == 20);
+    try std.testing.expect(cfg.auth_keys.items[1].burst == 40);
+}
+
+test "parse TOML config uses default auth values when [auth] absent" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.auth_enabled == false);
+    try std.testing.expect(cfg.auth_default_rate_limit == 10);
+    try std.testing.expect(cfg.auth_default_burst == 20);
+    try std.testing.expect(cfg.auth_keys.items.len == 0);
+}
+
+test "parse TOML config [auth] partial override keeps defaults" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[auth]
+        \\enabled = true
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.auth_enabled == true);
+    try std.testing.expect(cfg.auth_default_rate_limit == 10);
+    try std.testing.expect(cfg.auth_default_burst == 20);
+    try std.testing.expect(cfg.auth_keys.items.len == 0);
 }

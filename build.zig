@@ -62,6 +62,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const auth_mod = b.createModule(.{
+        .root_source_file = b.path("src/auth.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const proxy_mod = b.createModule(.{
         .root_source_file = b.path("src/proxy.zig"),
         .target = target,
@@ -90,6 +96,7 @@ pub fn build(b: *std.Build) void {
     root_mod.addImport("metrics", metrics_mod);
     root_mod.addImport("health", health_mod);
     root_mod.addImport("logger", logger_mod);
+    root_mod.addImport("auth", auth_mod);
 
     const shunt_mod = b.addModule("shunt", .{
         .root_source_file = b.path("src/root.zig"),
@@ -106,6 +113,7 @@ pub fn build(b: *std.Build) void {
     shunt_mod.addImport("metrics", metrics_mod);
     shunt_mod.addImport("health", health_mod);
     shunt_mod.addImport("logger", logger_mod);
+    shunt_mod.addImport("auth", auth_mod);
 
     const exe = b.addExecutable(.{
         .name = "shunt",
@@ -174,6 +182,10 @@ pub fn build(b: *std.Build) void {
         .root_module = logger_mod,
     });
 
+    const auth_tests = b.addTest(.{
+        .root_module = auth_mod,
+    });
+
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
@@ -190,6 +202,7 @@ pub fn build(b: *std.Build) void {
     test_unit_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(health_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(logger_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(auth_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
 
     const integration_mod = b.createModule(.{
@@ -227,6 +240,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     test_step.dependOn(&b.addRunArtifact(health_tests).step);
     test_step.dependOn(&b.addRunArtifact(logger_tests).step);
+    test_step.dependOn(&b.addRunArtifact(auth_tests).step);
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
     test_step.dependOn(&b.addRunArtifact(integration_tests).step);
     test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
@@ -249,6 +263,7 @@ pub fn build(b: *std.Build) void {
     ci_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     ci_step.dependOn(&b.addRunArtifact(health_tests).step);
     ci_step.dependOn(&b.addRunArtifact(logger_tests).step);
+    ci_step.dependOn(&b.addRunArtifact(auth_tests).step);
     ci_step.dependOn(&b.addRunArtifact(exe_tests).step);
     ci_step.dependOn(&b.addRunArtifact(integration_tests).step);
     ci_step.dependOn(&b.addRunArtifact(fuzz_tests).step);

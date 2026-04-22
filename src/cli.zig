@@ -9,6 +9,8 @@ pub const CliConfig = struct {
     max_buffered_requests: ?usize = null,
     buffered_request_timeout_ms: ?u64 = null,
     log_level: ?[]const u8 = null,
+    log_format: ?[]const u8 = null,
+    log_output: ?[]const u8 = null,
 };
 
 const prefix_listen_addr = "--listen-addr=";
@@ -17,6 +19,8 @@ const prefix_health_check = "--health-check-interval=";
 const prefix_max_buffered = "--max-buffered-requests=";
 const prefix_buffered_timeout = "--buffered-request-timeout=";
 const prefix_log_level = "--log-level=";
+const prefix_log_format = "--log-format=";
+const prefix_log_output = "--log-output=";
 
 pub fn parseArgs(args: []const []const u8) CliConfig {
     var cli = CliConfig{};
@@ -56,6 +60,16 @@ pub fn parseArgs(args: []const []const u8) CliConfig {
         } else if (mem.eql(u8, arg, "--log-level") and i + 1 < args.len) {
             i += 1;
             cli.log_level = args[i];
+        } else if (mem.startsWith(u8, arg, prefix_log_format)) {
+            cli.log_format = arg[prefix_log_format.len..];
+        } else if (mem.eql(u8, arg, "--log-format") and i + 1 < args.len) {
+            i += 1;
+            cli.log_format = args[i];
+        } else if (mem.startsWith(u8, arg, prefix_log_output)) {
+            cli.log_output = arg[prefix_log_output.len..];
+        } else if (mem.eql(u8, arg, "--log-output") and i + 1 < args.len) {
+            i += 1;
+            cli.log_output = args[i];
         }
     }
     return cli;
@@ -80,6 +94,12 @@ pub fn applyEnvOverrides(cli: *CliConfig, environ_map: *process.Environ.Map) voi
     if (environ_map.get("LB_LOG_LEVEL")) |val| {
         cli.log_level = val;
     }
+    if (environ_map.get("LB_LOG_FORMAT")) |val| {
+        cli.log_format = val;
+    }
+    if (environ_map.get("LB_LOG_OUTPUT")) |val| {
+        cli.log_output = val;
+    }
 }
 
 pub fn resolveListenAddr(cli: CliConfig, config_listen_addr: []const u8) []const u8 {
@@ -92,6 +112,14 @@ pub fn resolveHealthCheckInterval(cli: CliConfig, config_interval: u64) u64 {
 
 pub fn resolveLogLevel(cli: CliConfig, config_log_level: []const u8) []const u8 {
     return cli.log_level orelse config_log_level;
+}
+
+pub fn resolveLogFormat(cli: CliConfig, config_log_format: []const u8) []const u8 {
+    return cli.log_format orelse config_log_format;
+}
+
+pub fn resolveLogOutput(cli: CliConfig, config_log_output: []const u8) []const u8 {
+    return cli.log_output orelse config_log_output;
 }
 
 pub fn resolveMaxBufferedRequests(cli: CliConfig, config_max: usize) usize {

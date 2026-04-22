@@ -3,8 +3,30 @@ const mem = std.mem;
 const json = std.json;
 const backend_pool = @import("backend_pool");
 
-pub const BackendRef = struct {
-    pool_index: usize,
+pub const BackendRef = backend_pool.BackendRef;
+
+pub const CacheMetrics = struct {
+    hits: u64 = 0,
+    misses: u64 = 0,
+
+    pub fn hitRate(self: CacheMetrics) f64 {
+        const total = self.hits + self.misses;
+        if (total == 0) return 0.0;
+        return @as(f64, @floatFromInt(self.hits)) / @as(f64, @floatFromInt(total));
+    }
+
+    pub fn recordHit(self: *CacheMetrics) void {
+        self.hits += 1;
+    }
+
+    pub fn recordMiss(self: *CacheMetrics) void {
+        self.misses += 1;
+    }
+
+    pub fn reset(self: *CacheMetrics) void {
+        self.hits = 0;
+        self.misses = 0;
+    }
 };
 
 pub fn fnv1a64(input: []const u8) u64 {
@@ -43,11 +65,63 @@ pub fn extractSystemPromptAlloc(allocator: mem.Allocator, body: []const u8) !?[]
 }
 
 pub const CacheRouter = struct {
+    metrics: CacheMetrics = .{},
+    cache_ttl_ms: u64 = 300000,
+    disabled: bool = false,
+
     pub fn selectBackend(
+        self: *CacheRouter,
+        pool: *backend_pool.BackendPool,
+        group_backends: []const BackendRef,
+        prefix_hash: u64,
+        now_ms: i64,
+    ) ?*backend_pool.BackendEntry {
+        if (self.disabled) return null;
+        if (group_backends.len == 0) return null;
+
+        var affinity_match: ?*backend_pool.BackendEntry = null;
+        var best_ratio: f32 = 2.0;
+        var least_busy: ?*backend_pool.BackendEntry = null;
+
+        for (group_backends) |ref| {
+            if (ref.pool_index >= pool.backends.items.len) continue;
+            const entry = &pool.backends.items[ref.pool_index];
+            if (entry.health != .healthy) continue;
+
+            if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY and
+                entry.prefix_affinity == prefix_hash and
+                !entry.isAffinityExpired(now_ms, self.cache_ttl_ms) and
+                entry.hasFreeSlots())
+            {
+                if (affinity_match == null) {
+                    affinity_match = entry;
+                }
+            }
+
+            const ratio = entry.busynessRatio();
+            if (ratio < best_ratio) {
+                best_ratio = ratio;
+                least_busy = entry;
+            }
+        }
+
+        if (affinity_match != null) {
+            self.metrics.recordHit();
+            return affinity_match;
+        }
+        if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
+            self.metrics.recordMiss();
+        }
+        return least_busy;
+    }
+
+    pub fn selectBackendNoTime(
+        self: *CacheRouter,
         pool: *backend_pool.BackendPool,
         group_backends: []const BackendRef,
         prefix_hash: u64,
     ) ?*backend_pool.BackendEntry {
+        if (self.disabled) return null;
         if (group_backends.len == 0) return null;
 
         var affinity_match: ?*backend_pool.BackendEntry = null;
@@ -75,7 +149,13 @@ pub const CacheRouter = struct {
             }
         }
 
-        if (affinity_match) |match| return match;
+        if (affinity_match != null) {
+            self.metrics.recordHit();
+            return affinity_match;
+        }
+        if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
+            self.metrics.recordMiss();
+        }
         return least_busy;
     }
 };
@@ -127,9 +207,10 @@ test "CacheRouter selects backend with matching affinity" {
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4, .prefix_affinity = fnv1a64("You are helpful") });
     try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4, .prefix_affinity = fnv1a64("Different prompt") });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
     const hash = fnv1a64("You are helpful");
-    const selected = CacheRouter.selectBackend(&pool, &refs, hash);
+    const selected = router.selectBackendNoTime(&pool, &refs, hash);
     try std.testing.expect(selected != null);
     try std.testing.expectEqualStrings("http://a:8081", selected.?.address);
 }
@@ -141,9 +222,10 @@ test "CacheRouter falls back to least-busy when no affinity match" {
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 1, .slots_processing = 3, .slots_total = 4, .prefix_affinity = fnv1a64("Other prompt") });
     try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 3, .slots_processing = 1, .slots_total = 4, .prefix_affinity = fnv1a64("Another prompt") });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
     const hash = fnv1a64("New prompt");
-    const selected = CacheRouter.selectBackend(&pool, &refs, hash);
+    const selected = router.selectBackendNoTime(&pool, &refs, hash);
     try std.testing.expect(selected != null);
     try std.testing.expectEqualStrings("http://b:8081", selected.?.address);
 }
@@ -155,9 +237,10 @@ test "CacheRouter falls back to least-busy when affinity match is full" {
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 0, .slots_processing = 4, .slots_total = 4, .prefix_affinity = fnv1a64("You are helpful") });
     try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 2, .slots_processing = 2, .slots_total = 4, .prefix_affinity = 0 });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
     const hash = fnv1a64("You are helpful");
-    const selected = CacheRouter.selectBackend(&pool, &refs, hash);
+    const selected = router.selectBackendNoTime(&pool, &refs, hash);
     try std.testing.expect(selected != null);
     try std.testing.expectEqualStrings("http://b:8081", selected.?.address);
 }
@@ -169,13 +252,14 @@ test "CacheRouter two requests with same prefix route to same backend" {
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4 });
     try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4 });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
     const hash = fnv1a64("You are helpful");
 
-    const first = CacheRouter.selectBackend(&pool, &refs, hash).?;
+    const first = router.selectBackendNoTime(&pool, &refs, hash).?;
     first.updateAffinity(hash);
 
-    const second = CacheRouter.selectBackend(&pool, &refs, hash).?;
+    const second = router.selectBackendNoTime(&pool, &refs, hash).?;
     try std.testing.expectEqualStrings(first.address, second.address);
 }
 
@@ -185,18 +269,20 @@ test "CacheRouter returns null when all backends unhealthy" {
 
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .health = .unhealthy });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{.{ .pool_index = 0 }};
     const hash = fnv1a64("test");
-    try std.testing.expect(CacheRouter.selectBackend(&pool, &refs, hash) == null);
+    try std.testing.expect(router.selectBackendNoTime(&pool, &refs, hash) == null);
 }
 
 test "CacheRouter returns null for empty backend group" {
     var pool = backend_pool.BackendPool.init(std.testing.allocator);
     defer pool.deinit();
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{};
     const hash = fnv1a64("test");
-    try std.testing.expect(CacheRouter.selectBackend(&pool, &refs, hash) == null);
+    try std.testing.expect(router.selectBackendNoTime(&pool, &refs, hash) == null);
 }
 
 test "CacheRouter prefers affinity match over least-busy" {
@@ -206,9 +292,10 @@ test "CacheRouter prefers affinity match over least-busy" {
     try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 1, .slots_processing = 3, .slots_total = 4, .prefix_affinity = fnv1a64("You are helpful") });
     try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 4, .slots_processing = 0, .slots_total = 4, .prefix_affinity = 0 });
 
+    var router = CacheRouter{};
     const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
     const hash = fnv1a64("You are helpful");
-    const selected = CacheRouter.selectBackend(&pool, &refs, hash).?;
+    const selected = router.selectBackendNoTime(&pool, &refs, hash).?;
     try std.testing.expectEqualStrings("http://a:8081", selected.address);
 }
 
@@ -237,10 +324,12 @@ test "routing decision completes in under 1ms" {
 
     const hash = fnv1a64("prompt-A");
 
+    var router = CacheRouter{};
+
     const start = std.Io.Timestamp.now(std.testing.io, .awake);
     var iter: usize = 0;
     while (iter < 10000) : (iter += 1) {
-        _ = CacheRouter.selectBackend(&pool, refs.items, hash);
+        _ = router.selectBackendNoTime(&pool, refs.items, hash);
     }
     const end = std.Io.Timestamp.now(std.testing.io, .awake);
 
@@ -249,4 +338,106 @@ test "routing decision completes in under 1ms" {
     const per_decision_us: u64 = @divTrunc(per_decision_ns, 1000);
 
     try std.testing.expect(per_decision_us < 1000);
+}
+
+test "CacheRouter TTL expires stale affinity entries" {
+    var pool = backend_pool.BackendPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    const hash = fnv1a64("You are helpful");
+    try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 1, .slots_processing = 3, .slots_total = 4, .prefix_affinity = hash, .prefix_affinity_updated_at_ms = 1000 });
+    try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 4, .slots_processing = 0, .slots_total = 4, .prefix_affinity = 0 });
+
+    var router = CacheRouter{ .cache_ttl_ms = 5000 };
+    const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
+
+    const selected = router.selectBackend(&pool, &refs, hash, 7000).?;
+    try std.testing.expectEqualStrings("http://b:8081", selected.address);
+}
+
+test "CacheRouter TTL keeps fresh affinity entries" {
+    var pool = backend_pool.BackendPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    const hash = fnv1a64("You are helpful");
+    try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 1, .slots_processing = 3, .slots_total = 4, .prefix_affinity = hash, .prefix_affinity_updated_at_ms = 3000 });
+    try pool.addBackend(.{ .id = "b", .address = "http://b:8081", .model = "gpt-4", .slots_idle = 4, .slots_processing = 0, .slots_total = 4, .prefix_affinity = 0 });
+
+    var router = CacheRouter{ .cache_ttl_ms = 5000 };
+    const refs = [_]BackendRef{ .{ .pool_index = 0 }, .{ .pool_index = 1 } };
+
+    const selected = router.selectBackend(&pool, &refs, hash, 7000).?;
+    try std.testing.expectEqualStrings("http://a:8081", selected.address);
+}
+
+test "CacheMetrics tracks hits and misses" {
+    var metrics = CacheMetrics{};
+    try std.testing.expect(metrics.hits == 0);
+    try std.testing.expect(metrics.misses == 0);
+
+    metrics.recordHit();
+    metrics.recordHit();
+    metrics.recordMiss();
+    try std.testing.expect(metrics.hits == 2);
+    try std.testing.expect(metrics.misses == 1);
+    try std.testing.expect(metrics.hitRate() > 0.0);
+}
+
+test "CacheMetrics hitRate returns 0 when no requests" {
+    var metrics = CacheMetrics{};
+    try std.testing.expect(metrics.hitRate() == 0.0);
+}
+
+test "CacheMetrics reset clears counters" {
+    var metrics = CacheMetrics{};
+    metrics.recordHit();
+    metrics.recordMiss();
+    metrics.reset();
+    try std.testing.expect(metrics.hits == 0);
+    try std.testing.expect(metrics.misses == 0);
+}
+
+test "CacheRouter records cache hit on affinity match" {
+    var pool = backend_pool.BackendPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    const hash = fnv1a64("You are helpful");
+    try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4, .prefix_affinity = hash });
+
+    var router = CacheRouter{};
+    const refs = [_]BackendRef{.{ .pool_index = 0 }};
+    _ = router.selectBackendNoTime(&pool, &refs, hash);
+    try std.testing.expect(router.metrics.hits == 1);
+    try std.testing.expect(router.metrics.misses == 0);
+}
+
+test "CacheRouter records cache miss on no affinity match" {
+    var pool = backend_pool.BackendPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    try pool.addBackend(.{ .id = "a", .address = "http://a:8081", .model = "gpt-4", .slots_idle = 2, .slots_total = 4, .prefix_affinity = fnv1a64("Other prompt") });
+
+    var router = CacheRouter{};
+    const refs = [_]BackendRef{.{ .pool_index = 0 }};
+    _ = router.selectBackendNoTime(&pool, &refs, fnv1a64("You are helpful"));
+    try std.testing.expect(router.metrics.hits == 0);
+    try std.testing.expect(router.metrics.misses == 1);
+}
+
+test "BackendEntry isAffinityExpired returns false when no timestamp" {
+    var entry = backend_pool.BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4", .prefix_affinity = fnv1a64("test") };
+    try std.testing.expect(!entry.isAffinityExpired(10000, 5000));
+}
+
+test "BackendEntry isAffinityExpired returns true when TTL exceeded" {
+    var entry = backend_pool.BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4", .prefix_affinity = fnv1a64("test"), .prefix_affinity_updated_at_ms = 1000 };
+    try std.testing.expect(entry.isAffinityExpired(7000, 5000));
+}
+
+test "BackendEntry updateAffinityWithTimestamp sets both fields" {
+    var entry = backend_pool.BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4" };
+    const hash = fnv1a64("system prompt");
+    entry.updateAffinityWithTimestamp(hash, 5000);
+    try std.testing.expect(entry.prefix_affinity == hash);
+    try std.testing.expect(entry.prefix_affinity_updated_at_ms == 5000);
 }

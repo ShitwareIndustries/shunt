@@ -7,6 +7,9 @@ pub const Config = struct {
     max_buffered_requests: usize = 64,
     buffered_request_timeout_ms: u64 = 30000,
     log_level: []const u8 = "info",
+    cache_enabled: bool = true,
+    cache_ttl_ms: u64 = 300000,
+    cache_max_entries_per_backend: usize = 256,
     models: std.ArrayList(ModelConfig),
 
     pub const ModelConfig = struct {
@@ -37,7 +40,7 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
     var config = Config.init();
     errdefer config.deinit(allocator);
 
-    var current_section: enum { none, balancer, model } = .none;
+    var current_section: enum { none, balancer, cache, model } = .none;
     var pending_model: ?Config.ModelConfig = null;
     var lines = mem.splitSequence(u8, content, "\n");
 
@@ -51,6 +54,14 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                 pending_model = null;
             }
             current_section = .balancer;
+            continue;
+        }
+        if (mem.eql(u8, trimmed, "[cache]")) {
+            if (pending_model) |pm| {
+                try config.models.append(allocator, pm);
+                pending_model = null;
+            }
+            current_section = .cache;
             continue;
         }
         if (mem.eql(u8, trimmed, "[[models]]")) {
@@ -92,6 +103,26 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     };
                 } else if (mem.eql(u8, key, "log_level")) {
                     config.log_level = unquote(val);
+                }
+            },
+            .cache => {
+                if (mem.eql(u8, key, "cache_enabled")) {
+                    const v = unquote(val);
+                    if (mem.eql(u8, v, "true")) {
+                        config.cache_enabled = true;
+                    } else if (mem.eql(u8, v, "false")) {
+                        config.cache_enabled = false;
+                    } else {
+                        return ParseError.InvalidValue;
+                    }
+                } else if (mem.eql(u8, key, "cache_ttl_ms")) {
+                    config.cache_ttl_ms = std.fmt.parseInt(u64, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
+                } else if (mem.eql(u8, key, "cache_max_entries_per_backend")) {
+                    config.cache_max_entries_per_backend = std.fmt.parseInt(usize, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
                 }
             },
             .model => {
@@ -262,4 +293,63 @@ test "parse TOML config uses default max_buffered_requests and buffered_request_
 
     try std.testing.expect(cfg.max_buffered_requests == 64);
     try std.testing.expect(cfg.buffered_request_timeout_ms == 30000);
+}
+
+test "parse TOML config [cache] section" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[cache]
+        \\cache_enabled = false
+        \\cache_ttl_ms = 60000
+        \\cache_max_entries_per_backend = 128
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.cache_enabled == false);
+    try std.testing.expect(cfg.cache_ttl_ms == 60000);
+    try std.testing.expect(cfg.cache_max_entries_per_backend == 128);
+}
+
+test "parse TOML config uses default cache values when [cache] absent" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.cache_enabled == true);
+    try std.testing.expect(cfg.cache_ttl_ms == 300000);
+    try std.testing.expect(cfg.cache_max_entries_per_backend == 256);
+}
+
+test "parse TOML config [cache] partial override keeps defaults" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[cache]
+        \\cache_ttl_ms = 120000
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.cache_enabled == true);
+    try std.testing.expect(cfg.cache_ttl_ms == 120000);
+    try std.testing.expect(cfg.cache_max_entries_per_backend == 256);
 }

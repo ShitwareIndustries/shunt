@@ -3,6 +3,10 @@ const mem = std.mem;
 
 pub const HealthStatus = enum { healthy, unhealthy };
 
+pub const BackendRef = struct {
+    pool_index: usize,
+};
+
 pub const BackendEntry = struct {
     id: []const u8,
     address: []const u8,
@@ -14,6 +18,7 @@ pub const BackendEntry = struct {
     slots_processing: u32 = 0,
     slots_total: u32 = 0,
     prefix_affinity: u64 = 0,
+    prefix_affinity_updated_at_ms: i64 = 0,
 
     pub const NO_AFFINITY: u64 = 0;
 
@@ -34,6 +39,17 @@ pub const BackendEntry = struct {
 
     pub fn updateAffinity(self: *BackendEntry, hash: u64) void {
         self.prefix_affinity = hash;
+    }
+
+    pub fn updateAffinityWithTimestamp(self: *BackendEntry, hash: u64, now_ms: i64) void {
+        self.prefix_affinity = hash;
+        self.prefix_affinity_updated_at_ms = now_ms;
+    }
+
+    pub fn isAffinityExpired(self: BackendEntry, now_ms: i64, ttl_ms: u64) bool {
+        if (self.prefix_affinity == NO_AFFINITY) return true;
+        if (self.prefix_affinity_updated_at_ms == 0) return false;
+        return (now_ms - self.prefix_affinity_updated_at_ms) > @as(i64, @intCast(ttl_ms));
     }
 
     pub fn recordSuccess(self: *BackendEntry) void {

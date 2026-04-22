@@ -6,7 +6,7 @@ const log = std.log;
 const backend_pool = @import("backend_pool");
 const cache_router = @import("cache_router");
 
-pub const BackendRef = cache_router.BackendRef;
+pub const BackendRef = backend_pool.BackendRef;
 
 pub const ModelGroup = struct {
     name: []const u8,
@@ -35,6 +35,7 @@ pub const ModelRouter = struct {
     group_map: std.StringArrayHashMapUnmanaged(usize),
     allocator: mem.Allocator,
     rr_counters: std.ArrayList(u32),
+    cache_router: cache_router.CacheRouter,
 
     pub fn init(allocator: mem.Allocator) ModelRouter {
         return .{
@@ -42,6 +43,27 @@ pub const ModelRouter = struct {
             .group_map = .empty,
             .allocator = allocator,
             .rr_counters = .empty,
+            .cache_router = .{},
+        };
+    }
+
+    pub fn initWithTTL(allocator: mem.Allocator, cache_ttl_ms: u64) ModelRouter {
+        return .{
+            .groups = .empty,
+            .group_map = .empty,
+            .allocator = allocator,
+            .rr_counters = .empty,
+            .cache_router = .{ .cache_ttl_ms = cache_ttl_ms },
+        };
+    }
+
+    pub fn initDisabled(allocator: mem.Allocator) ModelRouter {
+        return .{
+            .groups = .empty,
+            .group_map = .empty,
+            .allocator = allocator,
+            .rr_counters = .empty,
+            .cache_router = .{ .cache_ttl_ms = 0, .disabled = true },
         };
     }
 
@@ -77,7 +99,33 @@ pub const ModelRouter = struct {
         if (group.backends.items.len == 0) return null;
 
         if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
-            const cache_result = cache_router.CacheRouter.selectBackend(pool, group.backends.items, prefix_hash);
+            const cache_result = self.cache_router.selectBackendNoTime(pool, group.backends.items, prefix_hash);
+            if (cache_result) |entry| return entry;
+        }
+
+        const rr = &self.rr_counters.items[group_idx];
+        const start = rr.* % group.backends.items.len;
+        var i: usize = 0;
+        while (i < group.backends.items.len) : (i += 1) {
+            const try_idx = (start + i) % group.backends.items.len;
+            const pool_idx = group.backends.items[try_idx].pool_index;
+            if (pool_idx < pool.backends.items.len) {
+                const entry = &pool.backends.items[pool_idx];
+                if (entry.health != .healthy) continue;
+                rr.* = @intCast(try_idx + 1);
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    pub fn selectBackendForModelWithTime(self: *ModelRouter, model: []const u8, pool: *backend_pool.BackendPool, prefix_hash: u64, now_ms: i64) ?*backend_pool.BackendEntry {
+        const group_idx = self.group_map.get(model) orelse return null;
+        const group = &self.groups.items[group_idx];
+        if (group.backends.items.len == 0) return null;
+
+        if (prefix_hash != backend_pool.BackendEntry.NO_AFFINITY) {
+            const cache_result = self.cache_router.selectBackend(pool, group.backends.items, prefix_hash, now_ms);
             if (cache_result) |entry| return entry;
         }
 

@@ -1,0 +1,446 @@
+/*
+  Shitware Industries — Donation Page Styles
+  Brand Guidelines v1.0 from BAN-44
+  License: AGPL v3
+*/
+
+:root {
+  --color-basalt: #1a1a1a;
+  --color-void: #0d0d0d;
+  --color-obsidian: #2a2a2a;
+  --color-graphite: #3a3a3a;
+  --color-ash: #5a5a5a;
+  --color-fog: #8a8a8a;
+  --color-cloud: #d4d4d4;
+  --color-smoke: #e8e8e8;
+  --color-snow: #f8f8f8;
+  --color-bleach: #ffffff;
+  --color-crimson: #dc143c;
+  --color-gold: #ffd700;
+  --color-silver: #c0c0c0;
+  --color-success: #22c55e;
+
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+
+  --max-width: 1200px;
+  --radius: 8px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--color-snow);
+  background-color: var(--color-basalt);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--color-crimson);
+  text-decoration: underline;
+}
+
+a:hover {
+  color: var(--color-gold);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--color-crimson);
+  outline-offset: 2px;
+}
+
+.container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 var(--space-8);
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 0 var(--space-12);
+  }
+}
+
+header {
+  background-color: var(--color-void);
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-4) 0;
+}
+
+header nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-snow);
+  text-decoration: none;
+}
+
+.logo:hover {
+  color: var(--color-snow);
+}
+
+nav a {
+  font-size: 14px;
+  color: var(--color-fog);
+  text-decoration: none;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+nav a:hover {
+  color: var(--color-snow);
+}
+
+.hero {
+  background-color: var(--color-void);
+  padding: var(--space-16) 0;
+  text-align: center;
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.hero h1 {
+  font-weight: 800;
+  font-size: 36px;
+  line-height: 1.1;
+  color: var(--color-snow);
+  margin-bottom: var(--space-4);
+}
+
+.hero p {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-fog);
+  max-width: 600px;
+  margin: 0 auto var(--space-6);
+  line-height: 1.5;
+}
+
+.hero .tagline {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-crimson);
+  font-weight: 400;
+}
+
+@media (min-width: 768px) {
+  .hero h1 {
+    font-size: 48px;
+  }
+  .hero p {
+    font-size: 20px;
+  }
+}
+
+section {
+  padding: var(--space-16) 0;
+}
+
+section h2 {
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.3;
+  margin-bottom: var(--space-8);
+  color: var(--color-snow);
+}
+
+@media (min-width: 768px) {
+  section h2 {
+    font-size: 30px;
+  }
+}
+
+.channels {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .channels {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+  }
+}
+
+.channel-card {
+  background-color: var(--color-obsidian);
+  border: 1px solid var(--color-graphite);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+}
+
+.channel-card h3 {
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.4;
+  margin-bottom: var(--space-3);
+  color: var(--color-snow);
+}
+
+.channel-card .channel-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 4px;
+  margin-bottom: var(--space-3);
+}
+
+.channel-label.primary {
+  background-color: var(--color-crimson);
+  color: var(--color-snow);
+}
+
+.channel-label.secondary {
+  background-color: var(--color-ash);
+  color: var(--color-snow);
+}
+
+.channel-label.future {
+  background-color: var(--color-graphite);
+  color: var(--color-fog);
+}
+
+.channel-card p {
+  font-size: 16px;
+  color: var(--color-fog);
+  margin-bottom: var(--space-4);
+  line-height: 1.6;
+}
+
+.channel-card .cta-link {
+  display: inline-block;
+  background-color: var(--color-crimson);
+  color: var(--color-snow);
+  font-weight: 600;
+  font-size: 16px;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.channel-card .cta-link:hover {
+  background-color: #b01030;
+  color: var(--color-snow);
+}
+
+.channel-card .cta-link:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.crypto-addresses {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.crypto-item {
+  background-color: var(--color-void);
+  border: 1px solid var(--color-graphite);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.crypto-item .crypto-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-gold);
+  margin-bottom: var(--space-2);
+}
+
+.crypto-item .crypto-network {
+  font-size: 12px;
+  color: var(--color-ash);
+  margin-bottom: var(--space-2);
+}
+
+.crypto-item .address-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.crypto-item .address {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-cloud);
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+.crypto-item .copy-btn {
+  flex-shrink: 0;
+  background-color: var(--color-graphite);
+  color: var(--color-snow);
+  border: 1px solid var(--color-ash);
+  border-radius: 4px;
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.crypto-item .copy-btn:hover {
+  background-color: var(--color-ash);
+}
+
+.crypto-item .copy-btn:focus-visible {
+  outline: 2px solid var(--color-crimson);
+  outline-offset: 2px;
+}
+
+.crypto-item .copy-btn.copied {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-bleach);
+}
+
+.crypto-item .qr-placeholder {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.crypto-item .qr-placeholder svg {
+  width: 120px;
+  height: 120px;
+}
+
+.crypto-item .qr-note {
+  font-size: 12px;
+  color: var(--color-ash);
+}
+
+.trust-section {
+  background-color: var(--color-obsidian);
+  border: 1px solid var(--color-graphite);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+}
+
+.trust-section h3 {
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.4;
+  margin-bottom: var(--space-4);
+  color: var(--color-gold);
+}
+
+.trust-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.trust-section li {
+  font-size: 16px;
+  color: var(--color-fog);
+  padding: var(--space-2) 0;
+  padding-left: var(--space-5);
+  position: relative;
+  line-height: 1.6;
+}
+
+.trust-section li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-gold);
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.trust-section .agpl-note {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-graphite);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-crimson);
+}
+
+footer {
+  background-color: var(--color-void);
+  border-top: 1px solid var(--color-graphite);
+  padding: var(--space-8) 0;
+  text-align: center;
+}
+
+footer p {
+  font-size: 14px;
+  color: var(--color-ash);
+  margin-bottom: var(--space-2);
+}
+
+footer .product-name {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--color-fog);
+}
+
+footer .license {
+  font-size: 12px;
+  color: var(--color-ash);
+  margin-top: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

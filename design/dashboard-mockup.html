@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shunt Dashboard — Mockup</title>
+<meta name="description" content="Product screenshot placeholder for the shunt LLM load balancer dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+--color-basalt: #1a1a1a;
+--color-void: #0d0d0d;
+--color-obsidian: #2a2a2a;
+--color-graphite: #3a3a3a;
+--color-ash: #5a5a5a;
+--color-fog: #8a8a8a;
+--color-cloud: #d4d4d4;
+--color-smoke: #e8e8e8;
+--color-snow: #f8f8f8;
+--color-crimson: #dc143c;
+--color-gold: #ffd700;
+--color-silver: #c0c0c0;
+--color-success: #22c55e;
+--font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+font-family: var(--font-body);
+background-color: var(--color-void);
+color: var(--color-snow);
+min-height: 100vh;
+display: flex;
+flex-direction: column;
+}
+
+.dashboard-frame {
+display: flex;
+flex-direction: column;
+height: 100vh;
+}
+
+.dashboard-topbar {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 12px 24px;
+background-color: var(--color-obsidian);
+border-bottom: 1px solid var(--color-graphite);
+}
+
+.dashboard-topbar-left {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 16px;
+color: var(--color-snow);
+}
+
+.dashboard-topbar-left .dollar {
+color: var(--color-silver);
+}
+
+.dashboard-topbar-right {
+display: flex;
+gap: 16px;
+align-items: center;
+}
+
+.topbar-link {
+font-size: 13px;
+color: var(--color-fog);
+text-decoration: none;
+}
+
+.topbar-link:hover { color: var(--color-snow); }
+
+.topbar-badge {
+font-family: var(--font-mono);
+font-size: 11px;
+font-weight: 700;
+text-transform: uppercase;
+background-color: var(--color-success);
+color: var(--color-void);
+padding: 2px 8px;
+border-radius: 4px;
+}
+
+.topbar-uptime {
+font-family: var(--font-mono);
+font-size: 12px;
+color: var(--color-fog);
+}
+
+.topbar-uptime strong {
+color: var(--color-success);
+}
+
+.dashboard-body {
+display: flex;
+flex: 1;
+overflow: hidden;
+}
+
+.sidebar {
+width: 220px;
+flex-shrink: 0;
+background-color: var(--color-obsidian);
+border-right: 1px solid var(--color-graphite);
+padding: 0;
+overflow-y: auto;
+}
+
+.sidebar-section-title {
+font-family: var(--font-mono);
+font-size: 11px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.08em;
+color: var(--color-ash);
+padding: 12px 16px 6px;
+}
+
+.sidebar-node {
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 8px 16px;
+font-family: var(--font-mono);
+font-size: 13px;
+color: var(--color-fog);
+cursor: default;
+transition: background-color 100ms ease;
+}
+
+.sidebar-node:hover {
+background-color: rgba(255, 255, 255, 0.03);
+}
+
+.sidebar-node.active-route {
+background-color: rgba(220, 20, 60, 0.08);
+border-left: 2px solid var(--color-crimson);
+padding-left: 14px;
+}
+
+.node-dot {
+width: 8px;
+height: 8px;
+border-radius: 50%;
+flex-shrink: 0;
+}
+
+.node-dot.healthy { background-color: var(--color-success); }
+.node-dot.degraded { background-color: var(--color-gold); }
+.node-dot.offline { background-color: var(--color-crimson); }
+.node-dot.idle { background-color: var(--color-graphite); }
+
+.node-name {
+flex: 1;
+min-width: 0;
+}
+
+.node-cache-bar {
+width: 40px;
+height: 4px;
+background-color: var(--color-graphite);
+border-radius: 2px;
+overflow: hidden;
+flex-shrink: 0;
+}
+
+.node-cache-fill {
+height: 100%;
+border-radius: 2px;
+background-color: var(--color-gold);
+}
+
+.node-health-detail {
+padding: 2px 16px 8px 32px;
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--color-ash);
+line-height: 1.5;
+}
+
+.node-health-detail .health-label {
+color: var(--color-fog);
+}
+
+.node-health-detail .health-val {
+color: var(--color-silver);
+}
+
+.node-health-detail .health-good {
+color: var(--color-success);
+}
+
+.node-health-detail .health-warn {
+color: var(--color-gold);
+}
+
+.node-health-detail .health-bad {
+color: var(--color-crimson);
+}
+
+.sidebar-divider {
+height: 1px;
+background-color: var(--color-graphite);
+margin: 8px 16px;
+}
+
+.main-content {
+flex: 1;
+padding: 24px;
+overflow-y: auto;
+display: flex;
+flex-direction: column;
+gap: 24px;
+}
+
+.route-flow {
+background-color: var(--color-basalt);
+border: 1px solid var(--color-graphite);
+border-radius: 8px;
+padding: 20px 24px;
+}
+
+.route-flow-title {
+font-size: 12px;
+font-weight: 600;
+color: var(--color-ash);
+text-transform: uppercase;
+letter-spacing: 0.05em;
+margin-bottom: 12px;
+}
+
+.route-flow-visual {
+display: flex;
+align-items: center;
+gap: 12px;
+font-family: var(--font-mono);
+font-size: 14px;
+color: var(--color-fog);
+flex-wrap: wrap;
+}
+
+.route-box {
+padding: 8px 16px;
+border: 1px solid var(--color-graphite);
+border-radius: 6px;
+background-color: var(--color-obsidian);
+}
+
+.route-box.shunt-box {
+border-color: var(--color-crimson);
+color: var(--color-snow);
+font-weight: 700;
+}
+
+.route-arrow {
+color: var(--color-crimson);
+font-weight: 700;
+font-size: 18px;
+}
+
+.route-target {
+color: var(--color-gold);
+font-weight: 700;
+}
+
+.route-cache-pct {
+font-size: 12px;
+color: var(--color-gold);
+}
+
+.route-flow-meta {
+display: flex;
+gap: 24px;
+margin-top: 12px;
+font-family: var(--font-mono);
+font-size: 12px;
+color: var(--color-ash);
+}
+
+.route-flow-meta span { color: var(--color-silver); }
+
+.stats-row {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 16px;
+}
+
+.stat-card {
+background-color: var(--color-basalt);
+border: 1px solid var(--color-graphite);
+border-radius: 8px;
+padding: 20px;
+}
+
+.stat-label {
+font-size: 12px;
+color: var(--color-ash);
+margin-bottom: 8px;
+}
+
+.stat-value {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 28px;
+color: var(--color-gold);
+}
+
+.stat-sub {
+font-family: var(--font-mono);
+font-size: 12px;
+color: var(--color-ash);
+margin-top: 4px;
+}
+
+.stat-sub .highlight {
+color: var(--color-success);
+}
+
+.latency-card {
+background-color: var(--color-basalt);
+border: 1px solid var(--color-graphite);
+border-radius: 8px;
+padding: 20px;
+}
+
+.latency-card-title {
+font-size: 12px;
+color: var(--color-ash);
+text-transform: uppercase;
+letter-spacing: 0.05em;
+margin-bottom: 16px;
+}
+
+.latency-sparkline {
+height: 48px;
+display: flex;
+align-items: flex-end;
+gap: 2px;
+margin-bottom: 16px;
+}
+
+.sparkline-bar {
+flex: 1;
+background-color: var(--color-silver);
+border-radius: 2px 2px 0 0;
+min-width: 3px;
+opacity: 0.5;
+transition: opacity 100ms ease;
+}
+
+.sparkline-bar:hover {
+opacity: 1;
+}
+
+.sparkline-bar.p50 { opacity: 0.35; }
+.sparkline-bar.p90 { opacity: 0.6; }
+.sparkline-bar.p99 { opacity: 0.9; background-color: var(--color-gold); }
+.sparkline-bar.cold { background-color: var(--color-crimson); opacity: 0.4; }
+
+.latency-legend {
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+
+.latency-legend-item {
+display: flex;
+align-items: center;
+gap: 6px;
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--color-fog);
+}
+
+.legend-dot {
+width: 8px;
+height: 8px;
+border-radius: 2px;
+flex-shrink: 0;
+}
+
+.legend-dot.p50 { background-color: var(--color-silver); opacity: 0.4; }
+.legend-dot.p90 { background-color: var(--color-silver); opacity: 0.7; }
+.legend-dot.p99 { background-color: var(--color-gold); }
+.legend-dot.cold { background-color: var(--color-crimson); opacity: 0.5; }
+
+.latency-percentiles {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 12px;
+margin-top: 16px;
+}
+
+.pct-item {
+text-align: center;
+}
+
+.pct-label {
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--color-ash);
+margin-bottom: 4px;
+}
+
+.pct-value {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 18px;
+color: var(--color-snow);
+}
+
+.pct-value.gold { color: var(--color-gold); }
+.pct-value.crimson { color: var(--color-crimson); }
+
+.request-rate-bar {
+background-color: var(--color-basalt);
+border: 1px solid var(--color-graphite);
+border-radius: 8px;
+padding: 20px;
+display: flex;
+gap: 32px;
+align-items: center;
+flex-wrap: wrap;
+}
+
+.rate-item {
+text-align: center;
+}
+
+.rate-value {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 24px;
+color: var(--color-snow);
+}
+
+.rate-value.crimson { color: var(--color-crimson); }
+.rate-value.gold { color: var(--color-gold); }
+
+.rate-label {
+font-size: 12px;
+color: var(--color-ash);
+margin-top: 4px;
+}
+
+.rate-divider {
+width: 1px;
+height: 40px;
+background-color: var(--color-graphite);
+}
+
+.request-log {
+background-color: var(--color-basalt);
+border: 1px solid var(--color-graphite);
+border-radius: 8px;
+overflow: hidden;
+}
+
+.log-header {
+padding: 12px 16px;
+border-bottom: 1px solid var(--color-graphite);
+font-size: 12px;
+font-weight: 600;
+color: var(--color-ash);
+text-transform: uppercase;
+letter-spacing: 0.05em;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+
+.log-header-count {
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--color-silver);
+font-weight: 400;
+text-transform: none;
+letter-spacing: 0;
+}
+
+.log-row {
+display: grid;
+grid-template-columns: 50px 1fr 100px 60px 60px 40px;
+gap: 8px;
+padding: 8px 16px;
+font-family: var(--font-mono);
+font-size: 12px;
+align-items: center;
+border-bottom: 1px solid rgba(58, 58, 58, 0.3);
+}
+
+.log-row:last-child { border-bottom: none; }
+
+.log-method { color: var(--color-success); font-weight: 700; }
+.log-path { color: var(--color-fog); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-route { color: var(--color-crimson); }
+.log-cache { color: var(--color-gold); text-align: right; }
+.log-latency { color: var(--color-silver); text-align: right; }
+.log-latency.slow { color: var(--color-crimson); }
+.log-status { color: var(--color-success); font-weight: 700; text-align: right; }
+
+.placeholder-note {
+text-align: center;
+padding: 24px;
+font-family: var(--font-mono);
+font-size: 13px;
+color: var(--color-ash);
+border-top: 1px solid var(--color-graphite);
+}
+
+@media (max-width: 767px) {
+.sidebar { display: none; }
+.stats-row { grid-template-columns: 1fr; }
+.latency-percentiles { grid-template-columns: 1fr 1fr; }
+.log-row { grid-template-columns: 40px 1fr 60px 40px; }
+.log-route, .log-cache { display: none; }
+.request-rate-bar { flex-direction: column; gap: 16px; align-items: flex-start; }
+.rate-divider { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="dashboard-frame">
+<div class="dashboard-topbar">
+<div class="dashboard-topbar-left">
+<span class="dollar">$</span> shunt dashboard
+</div>
+<div class="dashboard-topbar-right">
+<span class="topbar-uptime">Uptime: <strong>99.97%</strong></span>
+<a class="topbar-link" href="#">Docs</a>
+<a class="topbar-link" href="#">Settings</a>
+<span class="topbar-badge">live</span>
+</div>
+</div>
+
+<div class="dashboard-body">
+<div class="sidebar">
+<div class="sidebar-section-title">Nodes</div>
+
+<div class="sidebar-node">
+<span class="node-dot healthy"></span>
+<span class="node-name">node-1</span>
+<span class="node-cache-bar"><span class="node-cache-fill" style="width:72%"></span></span>
+</div>
+<div class="node-health-detail">
+<span class="health-label">Health:</span> <span class="health-good">OK</span> &middot;
+<span class="health-label">Req/s:</span> <span class="health-val">12.4</span> &middot;
+<span class="health-label">Lat:</span> <span class="health-val">62ms</span>
+</div>
+
+<div class="sidebar-node">
+<span class="node-dot healthy"></span>
+<span class="node-name">node-2</span>
+<span class="node-cache-bar"><span class="node-cache-fill" style="width:58%"></span></span>
+</div>
+<div class="node-health-detail">
+<span class="health-label">Health:</span> <span class="health-good">OK</span> &middot;
+<span class="health-label">Req/s:</span> <span class="health-val">8.7</span> &middot;
+<span class="health-label">Lat:</span> <span class="health-val">55ms</span>
+</div>
+
+<div class="sidebar-node active-route">
+<span class="node-dot healthy"></span>
+<span class="node-name">node-3</span>
+<span class="node-cache-bar"><span class="node-cache-fill" style="width:94%"></span></span>
+</div>
+<div class="node-health-detail">
+<span class="health-label">Health:</span> <span class="health-good">OK</span> &middot;
+<span class="health-label">Req/s:</span> <span class="health-val">24.1</span> &middot;
+<span class="health-label">Lat:</span> <span class="health-val">47ms</span>
+</div>
+
+<div class="sidebar-node">
+<span class="node-dot degraded"></span>
+<span class="node-name">node-4</span>
+<span class="node-cache-bar"><span class="node-cache-fill" style="width:12%"></span></span>
+</div>
+<div class="node-health-detail">
+<span class="health-label">Health:</span> <span class="health-warn">Degraded</span> &middot;
+<span class="health-label">Req/s:</span> <span class="health-val">1.2</span> &middot;
+<span class="health-label">Lat:</span> <span class="health-warn">312ms</span>
+</div>
+
+<div class="sidebar-node">
+<span class="node-dot offline"></span>
+<span class="node-name">node-5</span>
+<span class="node-cache-bar"><span class="node-cache-fill" style="width:0%"></span></span>
+</div>
+<div class="node-health-detail">
+<span class="health-label">Health:</span> <span class="health-bad">Offline</span> &middot;
+<span class="health-label">Req/s:</span> <span class="health-val">0</span> &middot;
+<span class="health-label">Lat:</span> <span class="health-bad">&mdash;</span>
+</div>
+
+<div class="sidebar-divider"></div>
+
+<div class="sidebar-section-title">Models</div>
+<div class="sidebar-node">gpt-4o</div>
+<div class="sidebar-node">gpt-4o-mini</div>
+
+<div class="sidebar-divider"></div>
+
+<div class="sidebar-section-title">Backends</div>
+<div class="sidebar-node">
+<span class="node-dot healthy"></span>
+<span class="node-name">api.openai.com</span>
+</div>
+<div class="sidebar-node">
+<span class="node-dot healthy"></span>
+<span class="node-name">api.anthropic.com</span>
+</div>
+</div>
+
+<div class="main-content">
+<div class="route-flow">
+<div class="route-flow-title">Request Flow</div>
+<div class="route-flow-visual">
+<span class="route-box">Client</span>
+<span class="route-arrow">&#8594;</span>
+<span class="route-box shunt-box">shunt</span>
+<span class="route-arrow">&#8594;</span>
+<span class="route-box route-target">node-3</span>
+<span class="route-cache-pct">(94% cache)</span>
+</div>
+<div class="route-flow-meta">
+Model: <span>gpt-4o</span> &middot; Tokens cached: <span>1,847</span> &middot; New tokens: <span>153</span> &middot; Savings: <span>92%</span>
+</div>
+</div>
+
+<div class="request-rate-bar">
+<div class="rate-item">
+<div class="rate-value crimson">46.4</div>
+<div class="rate-label">Requests / sec</div>
+</div>
+<div class="rate-divider"></div>
+<div class="rate-item">
+<div class="rate-value">2,784</div>
+<div class="rate-label">Requests / min</div>
+</div>
+<div class="rate-divider"></div>
+<div class="rate-item">
+<div class="rate-value gold">167,040</div>
+<div class="rate-label">Requests today</div>
+</div>
+<div class="rate-divider"></div>
+<div class="rate-item">
+<div class="rate-value">5</div>
+<div class="rate-label">Active backends</div>
+</div>
+</div>
+
+<div class="stats-row">
+<div class="stat-card">
+<div class="stat-label">Cache Hit Rate</div>
+<div class="stat-value">94.2%</div>
+<div class="stat-sub"><span class="highlight">+3.1%</span> vs yesterday</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Monthly Savings</div>
+<div class="stat-value">$2,847</div>
+<div class="stat-sub">Based on 30d avg</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Error Rate</div>
+<div class="stat-value" style="color: var(--color-success)">0.3%</div>
+<div class="stat-sub">Last 24h &middot; 5xx only</div>
+</div>
+</div>
+
+<div class="latency-card">
+<div class="latency-card-title">Latency Distribution (last 60 min)</div>
+<div class="latency-sparkline">
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar p50" style="height:14%"></div>
+<div class="sparkline-bar p50" style="height:20%"></div>
+<div class="sparkline-bar p90" style="height:35%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p90" style="height:38%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p50" style="height:21%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p90" style="height:42%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p90" style="height:36%"></div>
+<div class="sparkline-bar p50" style="height:14%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p90" style="height:40%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:22%"></div>
+<div class="sparkline-bar p90" style="height:44%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p90" style="height:39%"></div>
+<div class="sparkline-bar p99" style="height:58%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p50" style="height:20%"></div>
+<div class="sparkline-bar p90" style="height:37%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p90" style="height:41%"></div>
+<div class="sparkline-bar p50" style="height:14%"></div>
+<div class="sparkline-bar p50" style="height:21%"></div>
+<div class="sparkline-bar p90" style="height:43%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p90" style="height:38%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar cold" style="height:95%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p90" style="height:36%"></div>
+<div class="sparkline-bar p50" style="height:15%"></div>
+<div class="sparkline-bar p50" style="height:17%"></div>
+<div class="sparkline-bar p50" style="height:21%"></div>
+<div class="sparkline-bar p90" style="height:42%"></div>
+<div class="sparkline-bar p50" style="height:18%"></div>
+<div class="sparkline-bar p50" style="height:16%"></div>
+<div class="sparkline-bar p50" style="height:19%"></div>
+<div class="sparkline-bar p90" style="height:40%"></div>
+<div class="sparkline-bar p50" style="height:14%"></div>
+</div>
+<div class="latency-legend">
+<div class="latency-legend-item"><span class="legend-dot p50"></span> P50</div>
+<div class="latency-legend-item"><span class="legend-dot p90"></span> P90</div>
+<div class="latency-legend-item"><span class="legend-dot p99"></span> P99</div>
+<div class="latency-legend-item"><span class="legend-dot cold"></span> Cold start</div>
+</div>
+<div class="latency-percentiles">
+<div class="pct-item">
+<div class="pct-label">P50</div>
+<div class="pct-value">32ms</div>
+</div>
+<div class="pct-item">
+<div class="pct-label">P90</div>
+<div class="pct-value">67ms</div>
+</div>
+<div class="pct-item">
+<div class="pct-label">P99</div>
+<div class="pct-value gold">89ms</div>
+</div>
+<div class="pct-item">
+<div class="pct-label">Cold</div>
+<div class="pct-value crimson">312ms</div>
+</div>
+</div>
+</div>
+
+<div class="request-log">
+<div class="log-header">
+Recent Requests
+<span class="log-header-count">167,040 total today</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-3</span>
+<span class="log-cache">94%</span>
+<span class="log-latency">47ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-1</span>
+<span class="log-cache">72%</span>
+<span class="log-latency">62ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-3</span>
+<span class="log-cache">91%</span>
+<span class="log-latency">43ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-2</span>
+<span class="log-cache">58%</span>
+<span class="log-latency">89ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">GET</span>
+<span class="log-path">/v1/models</span>
+<span class="log-route">&#8594; shunt</span>
+<span class="log-cache">&mdash;</span>
+<span class="log-latency">2ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-4</span>
+<span class="log-cache">12%</span>
+<span class="log-latency slow">312ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-3</span>
+<span class="log-cache">88%</span>
+<span class="log-latency">51ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-1</span>
+<span class="log-cache">67%</span>
+<span class="log-latency">71ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-2</span>
+<span class="log-cache">54%</span>
+<span class="log-latency">95ms</span>
+<span class="log-status">200</span>
+</div>
+<div class="log-row">
+<span class="log-method">POST</span>
+<span class="log-path">/v1/chat/completions</span>
+<span class="log-route">&#8594; node-3</span>
+<span class="log-cache">96%</span>
+<span class="log-latency">39ms</span>
+<span class="log-status">200</span>
+</div>
+</div>
+</div>
+</div>
+
+<div class="placeholder-note">
+shunt dashboard mockup &middot; Product screenshot placeholder &middot; AGPL v3
+</div>
+</div>
+</body>
+</html>

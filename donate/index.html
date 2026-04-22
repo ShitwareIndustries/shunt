@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support shunt — Shitware Industries</title>
+  <meta name="description" content="Support open source infrastructure. shunt is free. Your donations keep it that way.">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <nav class="container">
+      <a href="/" class="logo">$ shunt</a>
+      <a href="/">Back to site</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Support Open Source Infrastructure</h1>
+      <p>shunt is free. Your donations keep it that way.</p>
+      <span class="tagline">Ship it. We dare you.</span>
+    </div>
+  </section>
+
+  <main>
+    <section>
+      <div class="container">
+        <h2>Donation Channels</h2>
+        <div class="channels">
+
+          <div class="channel-card">
+            <span class="channel-label primary">Primary</span>
+            <h3>Open Collective</h3>
+            <p>Transparent finances. Every donation is publicly tracked.</p>
+            <a class="cta-link" href="https://opencollective.com/shitware-industries" target="_blank" rel="noopener noreferrer">Donate via Open Collective</a>
+          </div>
+
+          <div class="channel-card">
+            <span class="channel-label secondary">Secondary</span>
+            <h3>Cryptocurrency</h3>
+            <p>Privacy-respecting donations. No tracking.</p>
+
+            <div class="crypto-addresses">
+              <div class="crypto-item">
+                <div class="crypto-name">XMR (Monero)</div>
+                <div class="address-wrapper">
+                  <span class="address" id="xmr-address">4A1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8s9T0u1V2w3X4y5Z6a7B8c9D0e1F2g3H4</span>
+                  <button class="copy-btn" data-target="xmr-address" aria-label="Copy Monero address">Copy</button>
+                </div>
+                <div class="qr-placeholder">
+                  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR code placeholder for Monero address">
+                    <rect width="120" height="120" fill="#0d0d0d" stroke="#3a3a3a" stroke-width="1"/>
+                    <rect x="10" y="10" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="17" y="17" width="16" height="16" fill="#dc143c"/>
+                    <rect x="80" y="10" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="87" y="17" width="16" height="16" fill="#dc143c"/>
+                    <rect x="10" y="80" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="17" y="87" width="16" height="16" fill="#dc143c"/>
+                    <rect x="50" y="50" width="20" height="20" fill="#ffd700"/>
+                    <text x="60" y="72" text-anchor="middle" font-family="Inter, sans-serif" font-size="7" fill="#8a8a8a">QR</text>
+                  </svg>
+                  <span class="qr-note">QR code — scan or copy address manually</span>
+                </div>
+              </div>
+
+              <div class="crypto-item">
+                <div class="crypto-name">USDC</div>
+                <div class="crypto-network">Network: Base</div>
+                <div class="address-wrapper">
+                  <span class="address" id="usdc-address">0x1a2B3c4D5e6F7g8H9i0J1k2L3m4N5o6P7q8R9s0T</span>
+                  <button class="copy-btn" data-target="usdc-address" aria-label="Copy USDC address">Copy</button>
+                </div>
+                <div class="qr-placeholder">
+                  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR code placeholder for USDC address">
+                    <rect width="120" height="120" fill="#0d0d0d" stroke="#3a3a3a" stroke-width="1"/>
+                    <rect x="10" y="10" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="17" y="17" width="16" height="16" fill="#dc143c"/>
+                    <rect x="80" y="10" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="87" y="17" width="16" height="16" fill="#dc143c"/>
+                    <rect x="10" y="80" width="30" height="30" fill="none" stroke="#f8f8f8" stroke-width="3"/>
+                    <rect x="17" y="87" width="16" height="16" fill="#dc143c"/>
+                    <rect x="50" y="50" width="20" height="20" fill="#ffd700"/>
+                    <text x="60" y="72" text-anchor="middle" font-family="Inter, sans-serif" font-size="7" fill="#8a8a8a">QR</text>
+                  </svg>
+                  <span class="qr-note">QR code — scan or copy address manually</span>
+                </div>
+              </div>
+            </div>
+
+            <p style="margin-top: 16px; font-size: 13px; color: #8a8a8a;">
+              Wallet addresses are placeholders. Real addresses will be provided once the board generates wallets on an air-gapped machine.
+            </p>
+          </div>
+
+          <div class="channel-card">
+            <span class="channel-label future">Coming Soon</span>
+            <h3>GitHub Sponsors</h3>
+            <p>Sponsor us directly on GitHub. Available once the GitHub organization is set up.</p>
+            <span style="font-family: var(--font-mono); font-size: 14px; color: var(--color-fog);">
+              Blocked on GitHub org creation
+            </span>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Trust and Transparency</h2>
+        <div class="trust-section">
+          <h3>Where your money goes</h3>
+          <ul>
+            <li>Infrastructure costs — servers, bandwidth, storage</li>
+            <li>CI/CD pipelines — automated testing and deployment</li>
+            <li>Domain hosting and DNS</li>
+            <li>Open Collective public budget — available once account is active</li>
+          </ul>
+          <div class="agpl-note">
+            We never paywall core features. All code is AGPL v3.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="/">shitware.industries</a></p>
+      <p class="product-name">shunt — LLM load balancer</p>
+      <p class="license">Licensed under AGPL v3. No exceptions.</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var buttons = document.querySelectorAll(".copy-btn");
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].addEventListener("click", function () {
+          var targetId = this.getAttribute("data-target");
+          var targetEl = document.getElementById(targetId);
+          if (!targetEl) return;
+
+          var text = targetEl.textContent;
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+              function () {
+                showCopied(targetId);
+              },
+              function () {
+                fallbackCopy(text, targetId);
+              }
+            );
+          } else {
+            fallbackCopy(text, targetId);
+          }
+        });
+      }
+
+      function fallbackCopy(text, targetId) {
+        var textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand("copy");
+          showCopied(targetId);
+        } catch (e) {
+          // silent fail — progressive enhancement
+        }
+        document.body.removeChild(textarea);
+      }
+
+      function showCopied(targetId) {
+        var btn = document.querySelector('.copy-btn[data-target="' + targetId + '"]');
+        if (!btn) return;
+        var original = btn.textContent;
+        btn.textContent = "Copied";
+        btn.classList.add("copied");
+        setTimeout(function () {
+          btn.textContent = original;
+          btn.classList.remove("copied");
+        }, 2000);
+      }
+    })();
+  </script>
+
+</body>
+</html>

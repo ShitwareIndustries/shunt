@@ -1,0 +1,19 @@
+[balancer]
+listen_addr = "0.0.0.0:8080"
+health_check_interval_ms = 2000
+log_level = "info"
+
+[[models]]
+id = "llama3-primary"
+address = "http://127.0.0.1:8081"
+model = "llama3"
+
+[[models]]
+id = "llama3-secondary"
+address = "http://127.0.0.1:8082"
+model = "llama3"
+
+[[models]]
+id = "gpt-4-backend"
+address = "http://127.0.0.1:8083"
+model = "gpt-4"

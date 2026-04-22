@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="400" height="200">
+  <title>shunt — LLM load balancer by Shitware Industries</title>
+  <desc>Product wordmark for shunt: a terminal command-style logo showing $ shunt with subtitle</desc>
+
+  <!-- Dark background variant -->
+  <rect width="400" height="200" fill="#1a1a1a" rx="4"/>
+
+  <!-- Terminal prompt: $ -->
+  <text x="40" y="88" font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-size="48" font-weight="700" fill="#c0c0c0">$</text>
+
+  <!-- Product name: shunt -->
+  <text x="82" y="88" font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-size="48" font-weight="700" fill="#f8f8f8">shunt</text>
+
+  <!-- Cursor blink -->
+  <rect x="274" y="58" width="3" height="38" fill="#dc143c" opacity="0.9">
+    <animate attributeName="opacity" values="0.9;0;0.9" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- Subtitle -->
+  <text x="40" y="124" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="400" fill="#c0c0c0">LLM load balancer</text>
+
+  <!-- Tagline -->
+  <text x="40" y="160" font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-size="12" font-weight="400" fill="#dc143c">Ship it. We dare you.</text>
+
+  <!-- Route arrow accent -->
+  <line x1="320" y1="140" x2="370" y2="140" stroke="#dc143c" stroke-width="2" stroke-linecap="round"/>
+  <polyline points="362,134 370,140 362,146" fill="none" stroke="#dc143c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Decorative cache indicator dots -->
+  <circle cx="328" cy="170" r="3" fill="#22c55e" opacity="0.8"/>
+  <circle cx="342" cy="170" r="3" fill="#22c55e" opacity="0.8"/>
+  <circle cx="356" cy="170" r="3" fill="#ffd700" opacity="0.6"/>
+  <circle cx="370" cy="170" r="3" fill="#3a3a3a" opacity="0.4"/>
+</svg>

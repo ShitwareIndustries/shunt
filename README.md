@@ -9,7 +9,7 @@ shunt sits between your application and multiple LLM backends. It routes request
 ## Quick start
 
 ```sh
-curl -LO https://github.com/shitware-industries/shunt/releases/latest/download/shunt-linux-x86_64
+curl -LO https://github.com/ShitwareIndustries/shunt/releases/latest/download/shunt-linux-x86_64
 chmod +x shunt-linux-x86_64
 ```
 

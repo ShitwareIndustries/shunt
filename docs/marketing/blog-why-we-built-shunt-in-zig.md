@@ -127,9 +127,9 @@ This is not a small thing. C interop in other languages requires FFI bindings, c
 The output of `zig build` is a single static binary. No libc dependency (by default). No runtime. No shared libraries. No package manager. Download it, `chmod +x`, run it. This is the deployment model self-hosted users expect:
 
 ```
-curl -sL https://github.com/shitware-industries/shunt/releases/latest/download/shunt-linux-x86_64 -o shunt
-chmod +x shunt
-./shunt --config shunt.yaml
+curl -LO https://github.com/ShitwareIndustries/shunt/releases/latest/download/shunt-linux-x86_64
+chmod +x shunt-linux-x86_64
+./shunt-linux-x86_64 --config=config.toml
 ```
 
 Three commands. No Docker. No pip. No cargo install. No package manager fight.
@@ -157,9 +157,9 @@ The language choice served the project. That is the only claim we are making. Zi
 ## Try it
 
 ```bash
-curl -sL https://github.com/shitware-industries/shunt/releases/latest/download/shunt-linux-x86_64 -o shunt
-chmod +x shunt
-./shunt --config shunt.yaml
+curl -LO https://github.com/ShitwareIndustries/shunt/releases/latest/download/shunt-linux-x86_64
+chmod +x shunt-linux-x86_64
+./shunt-linux-x86_64 --config=config.toml
 ```
 
 shunt is AGPL v3. Read the code. Fork it. Fix it.

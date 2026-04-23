@@ -13,6 +13,17 @@ cache_enabled = true
 cache_ttl_ms = 300000
 cache_max_entries_per_backend = 256
 
+# Authentication
+# When enabled, API key is required on /v1/ endpoints via Authorization: Bearer <key>
+# Health, metrics, and models endpoints remain public.
+[auth]
+enabled = false # Set to true for production
+
+# [[auth.keys]]
+# key = "shunt_sk_your-secret-key-here"
+# rate_limit = 10 # requests per second per key
+# burst = 20 # max burst size
+
 [[models]]
 id = "llama3-primary"
 address = "http://127.0.0.1:8081"

@@ -1,0 +1,62 @@
+# Shitware Industries - Self-Hosted GoToSocial (Mastodon-compatible Fediverse) Accounts
+# Generated: 2026-04-23
+# GoToSocial Version: 0.21.2
+# Instance Host: gts.shunt.dev (HTTP mode, port 8080)
+# Protocol: ActivityPub (Mastodon API compatible)
+# Note: This is a self-hosted GoToSocial instance, which is an ActivityPub
+# server compatible with the Mastodon API. It federates with the broader
+# Fediverse (Mastodon, Pleroma, Akkoma, etc.) once DNS + TLS are configured.
+# For now, accounts exist locally and can be used via API or settings panel.
+
+## Instance Details
+- Hostname: gts.shunt.dev
+- URL: http://gts.shunt.dev:8080
+- Protocol: HTTP (needs DNS + TLS upgrade for federation)
+- Port: 8080
+- Binary: /gotosocial/gotosocial
+- Config: /gotosocial/config.yaml
+- Database: /gotosocial/sqlite.db
+- Storage: /gotosocial/storage
+- Start command: cd /gotosocial && setsid ./gotosocial --config-path ./config.yaml server start > /tmp/gts.log 2>&1 &
+
+## Account 1: Shitware Industries (company account + admin)
+- Username: shitware
+- Fediverse handle: @shitware@gts.shunt.dev
+- Email: shitware@deltajohnsons.com
+- Password: Shunt-R0uting-2024!Masto
+- Role: Admin + Moderator
+- Account ID: 0195HHYTRFMRAEJW9NVA7GYEKR
+
+## Account 2: shunt (product account)
+- Username: shunt
+- Fediverse handle: @shunt@gts.shunt.dev
+- Email: shunt@deltajohnsons.com
+- Password: Shunt-R0uting-2024!Masto
+- Role: Standard user
+- Account ID: 0221N5AZXVXT91J6GXY3QZ5DE4
+
+## Federation Requirements
+To federate with the broader Fediverse (Mastodon, Pleroma, etc.):
+1. DNS: Create A record for gts.shunt.dev pointing to this server's public IP
+2. TLS: Enable LetsEncrypt in config.yaml or use a reverse proxy with TLS
+3. Change protocol from "http" to "https" in config.yaml
+4. Restart GoToSocial
+
+## OAuth Tokens (DB-inserted, for API automation)
+- shitware token: 44d6d910934ef67a8ede110d70353fae457efb54884b53dc576ce33758572d98
+  - Access header: Bearer 44d6d910934ef67a8ede110d70353fae457efb54884b53dc576ce33758572d98
+  - Scope: read write push (via profile-uploader application)
+- shitware admin-scoped token: admin-access-44d6d910934ef67a8ede110d70353fae457efb54884b53dc576ce33758572d98
+  - Access header: Bearer admin-access-44d6d910934ef67a8ede110d70353fae457efb54884b53dc576ce33758572d98
+  - Scope: read write push admin (via shitware-admin application)
+- shunt token: shunt-access-74f7b7b0c88f861d68db3ccca41a0ae2990eaf7cf0bc04b83b0f4b1da8690806
+  - Access header: Bearer shunt-access-74f7b7b0c88f861d68db3ccca41a0ae2990eaf7cf0bc04b83b0f4b1da8690806
+  - Scope: read write push (via profile-uploader application)
+- Note: Tokens were inserted directly into sqlite.db (tokens table) because GTS requires web-based OAuth authorization code flow. Server must be restarted after DB token insertion to pick up changes.
+
+## toot.community Note
+A toot.community account was also registered (username: shitware) but is
+stuck on hCaptcha at the email confirmation step. The confirmation token
+is GcAW8nsiUp6NXHHF8k7E - if a human can solve the CAPTCHA at:
+https://toot.community/auth/confirmation?confirmation_token=GcAW8nsiUp6NXHHF8k7E
+then we would also have a presence on a major Mastodon instance.

@@ -1,2 +1,8 @@
 .zig-cache/
 zig-out/
+.secrets/
+cfg/dev.env
+cfg/prod.env
+cfg/Caddyfile.gitea
+ci/tunnel-gitea.sh
+docs/marketing/setup-log.md

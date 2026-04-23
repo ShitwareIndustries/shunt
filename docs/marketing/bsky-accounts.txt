@@ -1,0 +1,37 @@
+# Shitware Industries - Self-Hosted Bluesky PDS Accounts
+# Generated: 2026-04-22
+# PDS Host: pds.shunt.dev (localhost:7213)
+# Note: These accounts exist on a self-hosted ATProto PDS. Handle resolution
+# requires DNS setup (pds.shunt.dev A record pointing to this server) for
+# federation with the broader Bluesky network.
+
+## PDS Admin
+- Admin Password: see /tmp/pds-admin-password.txt
+- JWT Secret: see /tmp/pds-jwt-secret.txt
+
+## Account 1: Shitware Industries (company account)
+- Handle: shitware.pds.shunt.dev
+- DID: did:plc:yfe75vgfnmvdauwhymv3dbtl
+- Email: hello@shitware.dev
+- Password: Shunt-R0uting-2024!
+
+## Account 2: shunt (product account)
+- Handle: shunt.pds.shunt.dev
+- DID: did:plc:gwcomu3r2zrcpkuyoosy3jhs
+- Email: shunt@shitware.dev
+- Password: Shunt-R0uting-2024!
+
+## PDS Configuration
+- Hostname: pds.shunt.dev
+- Port: 7213
+- Data Directory: /tmp/pds-data
+- Blob Store: /tmp/pds-data/blobs
+- Handle Domain: .pds.shunt.dev
+- Invite Required: false
+- Dev Mode: enabled
+
+## Self-Hosted PDS Caveats
+1. Handle resolution requires DNS: pds.shunt.dev must resolve to this server
+2. PLC directory entries were created locally; they won't appear in the public plc.directory without federation setup
+3. The PDS process must remain running for accounts to be accessible
+4. To restart PDS: setsid node /tmp/start-pds.js > /tmp/pds.log 2>&1 &

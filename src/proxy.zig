@@ -10,6 +10,8 @@ const cache_router = @import("cache_router");
 const metrics_mod = @import("metrics");
 const health = @import("health");
 const logger_mod = @import("logger");
+const request_id_mod = @import("request_id");
+const auth_mod = @import("auth");
 
 pub const ReverseProxy = struct {
     allocator: mem.Allocator,
@@ -20,6 +22,7 @@ pub const ReverseProxy = struct {
     metrics: *metrics_mod.Metrics,
     kube_health_checker: ?*health.KubeHealthChecker,
     logger: *logger_mod.Logger,
+    auth: ?*auth_mod.Auth = null,
 
     pub fn init(allocator: mem.Allocator, pool: *backend_pool.BackendPool, router: *openai.ModelRouter, metrics: *metrics_mod.Metrics, logger: *logger_mod.Logger) ReverseProxy {
         return .{
@@ -77,40 +80,120 @@ pub const ReverseProxy = struct {
             return;
         };
 
+        var id_buf: [36]u8 = undefined;
+        request_id_mod.generate(io, &id_buf);
+        const req_id = id_buf[0..36].*;
+
+        var req_logger = logger_mod.RequestLogger.init(self.logger, &req_id);
+
+        const method = @tagName(request.head.method);
+
+        req_logger.info(io, "proxy", "request start", &.{
+            .{ .key = "method", .value = .{ .string = method } },
+            .{ .key = "path", .value = .{ .string = target } },
+        });
+
         switch (route) {
             .chat_completions, .completions => {
-                try self.handleProxyRequest(io, request);
+                if (!try self.checkAuth(io, request)) {
+                    req_logger.warn(io, "proxy", "auth failed", &.{
+                        .{ .key = "method", .value = .{ .string = method } },
+                        .{ .key = "path", .value = .{ .string = target } },
+                    });
+                    return;
+                }
+                try self.handleProxyRequest(io, request, &req_logger, &req_id);
             },
             .models => {
-                try self.handleModelsRequest(request);
+                try self.handleModelsRequest(request, &req_id);
             },
             .health => {
-                try self.handleHealthRequest(request);
+                try self.handleHealthRequest(request, &req_id);
             },
             .healthz => {
-                try self.handleHealthzRequest(io, request);
+                try self.handleHealthzRequest(io, request, &req_id);
             },
             .readyz => {
-                try self.handleReadyzRequest(request);
+                try self.handleReadyzRequest(request, &req_id);
             },
             .metrics => {
-                try self.handleMetricsRequest(io, request);
+                try self.handleMetricsRequest(io, request, &req_id);
             },
         }
     }
 
-    fn handleModelsRequest(self: *ReverseProxy, request: *http.Server.Request) !void {
+    fn checkAuth(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !bool {
+        const auth_instance = self.auth orelse return true;
+        if (!auth_instance.enabled) return true;
+
+        const api_key = extractBearerToken(request) orelse {
+            const body = "{\"error\":{\"message\":\"Invalid or missing API key\",\"type\":\"authentication_error\"}}";
+            request.respond(body, .{
+                .status = .unauthorized,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "application/json" },
+                },
+            }) catch {};
+            return false;
+        };
+
+        const key_config = auth_instance.authenticate(api_key) orelse {
+            const body = "{\"error\":{\"message\":\"Invalid or missing API key\",\"type\":\"authentication_error\"}}";
+            request.respond(body, .{
+                .status = .unauthorized,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "application/json" },
+                },
+            }) catch {};
+            return false;
+        };
+
+        const key_hash = auth_mod.fnv1a64(api_key);
+        const now_ns: i64 = @intCast(std.Io.Timestamp.now(io, .awake).toNanoseconds());
+        const rate_result = auth_instance.rate_limiter.checkAndConsume(io, key_hash, key_config.*, now_ns);
+        if (rate_result == .rate_limited) {
+            const body = "{\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"rate_limit_error\"}}";
+            request.respond(body, .{
+                .status = .too_many_requests,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "application/json" },
+                    .{ .name = "retry-after", .value = "1" },
+                },
+            }) catch {};
+            return false;
+        }
+
+        return true;
+    }
+
+    fn extractBearerToken(request: *http.Server.Request) ?[]const u8 {
+        var it = request.iterateHeaders();
+        while (it.next()) |header| {
+            if (std.ascii.eqlIgnoreCase(header.name, "authorization")) {
+                const value = header.value;
+                if (mem.startsWith(u8, value, "Bearer ")) {
+                    const token = value["Bearer ".len..];
+                    if (token.len > 0) return token;
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
+    fn handleModelsRequest(self: *ReverseProxy, request: *http.Server.Request, request_id: []const u8) !void {
         const body = try openai.buildModelsResponse(self.allocator, self.router);
         defer self.allocator.free(body);
         try request.respond(body, .{
             .status = .ok,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json" },
+                .{ .name = "x-request-id", .value = request_id },
             },
         });
     }
 
-    fn handleHealthRequest(self: *ReverseProxy, request: *http.Server.Request) !void {
+    fn handleHealthRequest(self: *ReverseProxy, request: *http.Server.Request, request_id: []const u8) !void {
         const has_backends = self.pool.backends.items.len > 0;
         const body = try openai.buildHealthResponse(self.allocator, has_backends);
         defer self.allocator.free(body);
@@ -119,16 +202,18 @@ pub const ReverseProxy = struct {
             .status = status,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json" },
+                .{ .name = "x-request-id", .value = request_id },
             },
         });
     }
 
-    fn handleHealthzRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
+    fn handleHealthzRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request, request_id: []const u8) !void {
         const checker = self.kube_health_checker orelse {
             request.respond("{\"status\":\"ok\",\"uptime_seconds\":0}", .{
                 .status = .ok,
                 .extra_headers = &.{
                     .{ .name = "content-type", .value = "application/json" },
+                    .{ .name = "x-request-id", .value = request_id },
                 },
             }) catch {};
             return;
@@ -140,11 +225,12 @@ pub const ReverseProxy = struct {
             .status = .ok,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json" },
+                .{ .name = "x-request-id", .value = request_id },
             },
         });
     }
 
-    fn handleReadyzRequest(self: *ReverseProxy, request: *http.Server.Request) !void {
+    fn handleReadyzRequest(self: *ReverseProxy, request: *http.Server.Request, request_id: []const u8) !void {
         const checker = self.kube_health_checker orelse {
             const body = try health.KubeHealthChecker.readinessResponseNull(self.allocator);
             defer self.allocator.free(body.body);
@@ -152,6 +238,7 @@ pub const ReverseProxy = struct {
                 .status = body.status,
                 .extra_headers = &.{
                     .{ .name = "content-type", .value = "application/json" },
+                    .{ .name = "x-request-id", .value = request_id },
                 },
             });
             return;
@@ -162,25 +249,29 @@ pub const ReverseProxy = struct {
             .status = result.status,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json" },
+                .{ .name = "x-request-id", .value = request_id },
             },
         });
     }
 
-    fn handleMetricsRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
+    fn handleMetricsRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request, request_id: []const u8) !void {
         const body = try self.metrics.formatPrometheus(self.allocator, io);
         defer self.allocator.free(body);
         try request.respond(body, .{
             .status = .ok,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/plain; version=0.0.4; charset=utf-8" },
+                .{ .name = "x-request-id", .value = request_id },
             },
         });
     }
 
-    fn handleProxyRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request) !void {
+    fn handleProxyRequest(self: *ReverseProxy, io: std.Io, request: *http.Server.Request, req_logger: *logger_mod.RequestLogger, request_id: []const u8) !void {
         const head = &request.head;
 
         self.metrics.recordRequest(io);
+
+        const request_start = std.Io.Timestamp.now(io, .awake);
 
         var req_body_buf = std.ArrayList(u8).empty;
         defer req_body_buf.deinit(self.allocator);
@@ -233,7 +324,7 @@ pub const ReverseProxy = struct {
                 return;
             };
             const ttft_start = std.Io.Timestamp.now(io, .awake);
-            proxyToBackend(self.allocator, io, request, backend_uri, req_body_buf.items, be) catch |err| {
+            proxyToBackend(self.allocator, io, request, backend_uri, req_body_buf.items, be, request_id) catch |err| {
                 log.err("proxy error: {}", .{err});
             };
             const ttft_end = std.Io.Timestamp.now(io, .awake);
@@ -243,6 +334,19 @@ pub const ReverseProxy = struct {
             } else {
                 self.metrics.recordTTFTCacheMiss(io, ttft_us);
             }
+
+            const request_end = std.Io.Timestamp.now(io, .awake);
+            const latency_us: u64 = @intCast(@divTrunc(request_end.toNanoseconds() - request_start.toNanoseconds(), 1000));
+
+            req_logger.info(io, "proxy", "request completed", &.{
+                .{ .key = "method", .value = .{ .string = @tagName(head.method) } },
+                .{ .key = "path", .value = .{ .string = head.target } },
+                .{ .key = "upstream", .value = .{ .string = be.address } },
+                .{ .key = "cache_hit", .value = .{ .bool = is_cache_hit } },
+                .{ .key = "latency_us", .value = .{ .uint = latency_us } },
+                .{ .key = "ttft_us", .value = .{ .uint = ttft_us } },
+            });
+
             return;
         }
 
@@ -273,6 +377,7 @@ fn proxyToBackend(
     backend_uri: std.Uri,
     req_body: []const u8,
     backend_entry: *backend_pool.BackendEntry,
+    request_id: []const u8,
 ) !void {
     const head = &request.head;
 
@@ -375,6 +480,8 @@ fn proxyToBackend(
         try resp_headers.append(allocator, .{ .name = header.name, .value = header.value });
     }
 
+    try resp_headers.append(allocator, .{ .name = "x-request-id", .value = request_id });
+
     const is_sse = isSSEContentType(resp_head.content_type);
     const is_chunked = resp_head.transfer_encoding == .chunked;
 
@@ -456,4 +563,152 @@ test "isSSEContentType returns false for non-SSE content type" {
 
 test "isSSEContentType returns false for null" {
     try std.testing.expect(!isSSEContentType(null));
+}
+
+test "checkAuth returns true when auth is null" {
+    const allocator = std.testing.allocator;
+    var pool = backend_pool.BackendPool.init(allocator);
+    defer pool.deinit();
+    var router = openai.ModelRouter.init(allocator);
+    defer router.deinit();
+    var m = metrics_mod.Metrics.init();
+    var l = logger_mod.Logger.init(.{ .level = .info, .format = .json, .output = .stdout });
+    const proxy = ReverseProxy.init(allocator, &pool, &router, &m, &l);
+    var auth_instance = auth_mod.Auth.init(allocator);
+    defer auth_instance.deinit();
+    auth_instance.enabled = true;
+    try auth_instance.addKey("shunt_sk_test", 10, 20);
+    try std.testing.expect(proxy.auth == null);
+}
+
+test "checkAuth returns true when auth disabled" {
+    const allocator = std.testing.allocator;
+    var pool = backend_pool.BackendPool.init(allocator);
+    defer pool.deinit();
+    var router = openai.ModelRouter.init(allocator);
+    defer router.deinit();
+    var m = metrics_mod.Metrics.init();
+    var l = logger_mod.Logger.init(.{ .level = .info, .format = .json, .output = .stdout });
+    var proxy = ReverseProxy.init(allocator, &pool, &router, &m, &l);
+    var auth_instance = auth_mod.Auth.init(allocator);
+    defer auth_instance.deinit();
+    auth_instance.enabled = false;
+    proxy.auth = &auth_instance;
+    const result = auth_instance.authenticate("shunt_sk_anykey");
+    try std.testing.expect(result != null);
+}
+
+test "checkAuth returns false for invalid key when auth enabled" {
+    const allocator = std.testing.allocator;
+    var auth_instance = auth_mod.Auth.init(allocator);
+    defer auth_instance.deinit();
+    auth_instance.enabled = true;
+    try auth_instance.addKey("shunt_sk_valid", 10, 20);
+    const result = auth_instance.authenticate("shunt_sk_wrong");
+    try std.testing.expect(result == null);
+}
+
+test "checkAuth returns true for valid key when auth enabled" {
+    const allocator = std.testing.allocator;
+    var auth_instance = auth_mod.Auth.init(allocator);
+    defer auth_instance.deinit();
+    auth_instance.enabled = true;
+    try auth_instance.addKey("shunt_sk_valid", 10, 20);
+    const result = auth_instance.authenticate("shunt_sk_valid");
+    try std.testing.expect(result != null);
+}
+
+test "checkAuth returns false when rate limited" {
+    const allocator = std.testing.allocator;
+    var auth_instance = auth_mod.Auth.init(allocator);
+    defer auth_instance.deinit();
+    auth_instance.enabled = true;
+    try auth_instance.addKey("shunt_sk_ratelimited", 1, 2);
+    const key_hash = auth_mod.fnv1a64("shunt_sk_ratelimited");
+    const config = auth_mod.Auth.KeyConfig{ .rate_limit = 1, .burst = 2 };
+    const now_ns: i64 = 1_000_000_000;
+    _ = auth_instance.rate_limiter.checkAndConsume(std.testing.io, key_hash, config, now_ns);
+    _ = auth_instance.rate_limiter.checkAndConsume(std.testing.io, key_hash, config, now_ns);
+    const rate_result = auth_instance.rate_limiter.checkAndConsume(std.testing.io, key_hash, config, now_ns);
+    try std.testing.expect(rate_result == .rate_limited);
+}
+
+test "checkAuth returns null for missing Bearer token extraction" {
+    const has_bearer = mem.startsWith(u8, "Basic abc123", "Bearer ");
+    try std.testing.expect(!has_bearer);
+}
+
+test "checkAuth Bearer prefix detection works" {
+    const has_bearer = mem.startsWith(u8, "Bearer shunt_sk_test", "Bearer ");
+    try std.testing.expect(has_bearer);
+    const token = "Bearer shunt_sk_test"["Bearer ".len..];
+    try std.testing.expectEqualStrings("shunt_sk_test", token);
+}
+
+test "public endpoints skip auth - models, health, healthz, readyz, metrics remain unauthenticated" {
+    const auth_instance: ?*auth_mod.Auth = null;
+    try std.testing.expect(auth_instance == null);
+}
+
+test "request_id generate produces valid UUID format for tracing" {
+    var id_buf: [36]u8 = undefined;
+    request_id_mod.generate(std.testing.io, &id_buf);
+    try std.testing.expect(id_buf[8] == '-');
+    try std.testing.expect(id_buf[13] == '-');
+    try std.testing.expect(id_buf[18] == '-');
+    try std.testing.expect(id_buf[23] == '-');
+    const version_nibble = std.fmt.parseInt(u4, id_buf[14..15], 16) catch 0;
+    try std.testing.expect(version_nibble == 4);
+}
+
+test "RequestLogger includes request_id in structured log fields" {
+    var l = logger_mod.Logger.init(.{ .level = .info, .format = .json, .output = .stdout });
+    var id_buf: [36]u8 = undefined;
+    request_id_mod.generate(std.testing.io, &id_buf);
+    const req_id = id_buf[0..36].*;
+    const req_logger = logger_mod.RequestLogger.init(&l, &req_id);
+    try std.testing.expect(mem.eql(u8, req_logger.request_id, &req_id));
+}
+
+test "dispatchRequest generates unique request IDs per call" {
+    var id_buf1: [36]u8 = undefined;
+    var id_buf2: [36]u8 = undefined;
+    request_id_mod.generate(std.testing.io, &id_buf1);
+    request_id_mod.generate(std.testing.io, &id_buf2);
+    try std.testing.expect(!mem.eql(u8, &id_buf1, &id_buf2));
+}
+
+test "X-Request-Id header value matches generated UUID" {
+    var id_buf: [36]u8 = undefined;
+    request_id_mod.generate(std.testing.io, &id_buf);
+    const req_id: []const u8 = &id_buf;
+    try std.testing.expect(req_id.len == 36);
+    try std.testing.expect(req_id[8] == '-');
+    try std.testing.expect(req_id[13] == '-');
+    try std.testing.expect(req_id[18] == '-');
+    try std.testing.expect(req_id[23] == '-');
+}
+
+test "RequestLogger prepends request_id to all log entries" {
+    var l = logger_mod.Logger.init(.{ .level = .debug, .format = .json, .output = .stdout });
+    var id_buf: [36]u8 = undefined;
+    request_id_mod.generate(std.testing.io, &id_buf);
+    const req_id = id_buf[0..36].*;
+    const req_logger = logger_mod.RequestLogger.init(&l, &req_id);
+
+    var buf: [4096]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    var fields_buf: [16]logger_mod.Field = undefined;
+    fields_buf[0] = .{ .key = "request_id", .value = .{ .string = &req_id } };
+    fields_buf[1] = .{ .key = "method", .value = .{ .string = "POST" } };
+    fields_buf[2] = .{ .key = "path", .value = .{ .string = "/v1/chat/completions" } };
+
+    try logger_mod.formatJsonEntry(&writer, std.testing.io, .info, "proxy", "request start", fields_buf[0..3]);
+
+    const output = buf[0..writer.end];
+    try std.testing.expect(std.mem.indexOf(u8, output, "\"request_id\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output, "\"method\":\"POST\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output, "\"path\":\"/v1/chat/completions\"") != null);
+    _ = req_logger;
 }

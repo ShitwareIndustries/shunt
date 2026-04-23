@@ -12,6 +12,7 @@ pub const cache_router = @import("cache_router");
 pub const metrics = @import("metrics");
 pub const health = @import("health");
 pub const logger = @import("logger");
+pub const request_id = @import("request_id");
 pub const auth = @import("auth");
 
 pub const HealthChecker = struct {

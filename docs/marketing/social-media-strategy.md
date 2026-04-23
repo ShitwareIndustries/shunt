@@ -6,7 +6,7 @@ Platform-by-platform strategy for Shitware Industries' social presence. Covers p
 
 | Platform | Priority | Status | Why |
 |----------|----------|--------|-----|
-| Twitter/X | Primary | Blocked on account creation | Developer community is active. Short-form technical content works. Build-in-public is the strategy. |
+| Twitter/X | Primary | Active (@ShitwareIndustr) | Developer community is active. Short-form technical content works. Build-in-public is the strategy. |
 | Hacker News | Primary | No account needed (per-launch) | Show HN is the launch catalyst. Technical depth only. |
 | r/LocalLLaMA | Secondary | Blocked on account with history | Core audience for self-hosted LLM infra. Sustained referral traffic. |
 | LinkedIn | Skip | CEO directive | Wrong audience at this stage. |
@@ -116,6 +116,6 @@ Week 1-2 focus: brand, voice, thought leadership. No product features until shun
 
 ## Blocking Dependencies
 
-- Twitter/X account creation (blocked on phone verification/CAPTCHA)
+- Twitter/X account: @ShitwareIndustr (active)
 - Reddit account with history (needs organic activity before launch)
 - Working shunt build (no product content until it actually runs)

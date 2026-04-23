@@ -151,15 +151,33 @@ Generic load balancers (nginx, HAProxy) can distribute LLM traffic, but they hav
 
 When shunt is ready, setup looks like this:
 
-```yaml
-# shunt.yaml
-backends:
-  - url: http://localhost:8081    # llama.cpp instance 1
-  - url: http://localhost:8082    # llama.cpp instance 2
-  - url: http://localhost:8083    # llama.cpp instance 3
+```toml
+# config.toml
+[balancer]
+listen_addr = "0.0.0.0:8080"
 
-listen: "0.0.0.0:443"
-strategy: kv-cache-affinity
+[[models]]
+id = "llama3-primary"
+address = "http://localhost:8081"
+model = "llama3"
+
+[[models]]
+id = "llama3-secondary"
+address = "http://localhost:8082"
+model = "llama3"
+
+[[models]]
+id = "llama3-tertiary"
+address = "http://localhost:8083"
+model = "llama3"
+```
+
+```bash
+# Start shunt
+./shunt --config config.toml
+
+# Point your existing OpenAI client at shunt instead of api.openai.com
+export OPENAI_API_BASE=http://localhost:8080/v1
 ```
 
 ```bash
@@ -196,12 +214,12 @@ If you are running multiple LLM backends and routing requests with round-robin o
 
 ## Try it
 
-shunt is in development. When it ships:
+shunt is shipping now:
 
 ```bash
-curl -sL https://github.com/shitware-industries/shunt/releases/latest/download/shunt-linux-x86_64 -o shunt
-chmod +x shunt
-./shunt --config shunt.yaml
+curl -LO https://github.com/ShitwareIndustries/shunt/releases/latest/download/shunt-linux-x86_64
+chmod +x shunt-linux-x86_64
+./shunt-linux-x86_64 --config=config.toml
 ```
 
 AGPL v3. Read the code. Fork it. Break it. Tell us what broke.

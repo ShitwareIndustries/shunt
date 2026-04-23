@@ -54,7 +54,7 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
     var config = Config.init();
     errdefer config.deinit(allocator);
 
-    var current_section: enum { none, balancer, cache, model, auth, auth_key } = .none;
+    var current_section: enum { none, balancer, cache, model, auth, auth_key, logging } = .none;
     var pending_model: ?Config.ModelConfig = null;
     var pending_auth_key: ?Config.AuthKeyConfig = null;
     var lines = mem.splitSequence(u8, content, "\n");
@@ -97,6 +97,18 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                 pending_auth_key = null;
             }
             current_section = .auth;
+            continue;
+        }
+        if (mem.eql(u8, trimmed, "[logging]")) {
+            if (pending_model) |pm| {
+                try config.models.append(allocator, pm);
+                pending_model = null;
+            }
+            if (pending_auth_key) |ak| {
+                try config.auth_keys.append(allocator, ak);
+                pending_auth_key = null;
+            }
+            current_section = .logging;
             continue;
         }
         if (mem.eql(u8, trimmed, "[[auth.keys]]")) {
@@ -220,6 +232,15 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     };
                 }
             },
+            .logging => {
+                if (mem.eql(u8, key, "level")) {
+                    config.log_level = unquote(val);
+                } else if (mem.eql(u8, key, "format")) {
+                    config.logging_format = unquote(val);
+                } else if (mem.eql(u8, key, "output")) {
+                    config.logging_output = unquote(val);
+                }
+            },
             .none => {},
         }
     }
@@ -233,6 +254,12 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
 
     for (config.models.items) |m| {
         if (m.id.len == 0 or m.address.len == 0 or m.model.len == 0) {
+            return ParseError.MissingField;
+        }
+    }
+
+    for (config.auth_keys.items) |ak| {
+        if (ak.key.len == 0) {
             return ParseError.MissingField;
         }
     }
@@ -514,4 +541,127 @@ test "parse TOML config [auth] partial override keeps defaults" {
     try std.testing.expect(cfg.auth_default_rate_limit == 10);
     try std.testing.expect(cfg.auth_default_burst == 20);
     try std.testing.expect(cfg.auth_keys.items.len == 0);
+}
+
+test "parse TOML config [auth] missing key field returns error" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[auth]
+        \\enabled = true
+        \\
+        \\[[auth.keys]]
+        \\rate_limit = 50
+        \\burst = 100
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    const result = parse(allocator, toml);
+    try std.testing.expect(result == ParseError.MissingField);
+}
+
+test "parse TOML config [[auth.keys]] with multiple entries" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[auth]
+        \\enabled = true
+        \\
+        \\[[auth.keys]]
+        \\key = "shunt_sk_alpha"
+        \\rate_limit = 10
+        \\burst = 20
+        \\
+        \\[[auth.keys]]
+        \\key = "shunt_sk_beta"
+        \\rate_limit = 100
+        \\burst = 200
+        \\
+        \\[[auth.keys]]
+        \\key = "shunt_sk_gamma"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.auth_keys.items.len == 3);
+    try std.testing.expectEqualStrings("shunt_sk_alpha", cfg.auth_keys.items[0].key);
+    try std.testing.expect(cfg.auth_keys.items[0].rate_limit == 10);
+    try std.testing.expect(cfg.auth_keys.items[0].burst == 20);
+    try std.testing.expectEqualStrings("shunt_sk_beta", cfg.auth_keys.items[1].key);
+    try std.testing.expect(cfg.auth_keys.items[1].rate_limit == 100);
+    try std.testing.expect(cfg.auth_keys.items[1].burst == 200);
+    try std.testing.expectEqualStrings("shunt_sk_gamma", cfg.auth_keys.items[2].key);
+    try std.testing.expect(cfg.auth_keys.items[2].rate_limit == 10);
+    try std.testing.expect(cfg.auth_keys.items[2].burst == 20);
+}
+
+test "parse TOML config [logging] section" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[logging]
+        \\level = "debug"
+        \\format = "text"
+        \\output = "stderr"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expectEqualStrings("debug", cfg.log_level);
+    try std.testing.expectEqualStrings("text", cfg.logging_format);
+    try std.testing.expectEqualStrings("stderr", cfg.logging_output);
+}
+
+test "parse TOML config [logging] partial override keeps defaults" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[logging]
+        \\level = "warn"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expectEqualStrings("warn", cfg.log_level);
+    try std.testing.expectEqualStrings("json", cfg.logging_format);
+    try std.testing.expectEqualStrings("stdout", cfg.logging_output);
+}
+
+test "parse TOML config [logging] overrides [balancer] log_level" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[balancer]
+        \\log_level = "info"
+        \\
+        \\[logging]
+        \\level = "debug"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expectEqualStrings("debug", cfg.log_level);
 }

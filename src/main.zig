@@ -55,6 +55,17 @@ pub fn main(init: std.process.Init) !void {
     var req_queue = shunt.request_queue.RequestQueue.init(allocator, io, max_buffered, buffered_timeout);
     defer req_queue.deinit();
 
+    var auth_instance = shunt.auth.Auth.init(allocator);
+    defer auth_instance.deinit();
+    if (app_config.auth_enabled) {
+        auth_instance.enabled = true;
+        for (app_config.auth_keys.items) |ak| {
+            auth_instance.addKey(ak.key, ak.rate_limit, ak.burst) catch |err| {
+                std.log.err("failed to add auth key: {}", .{err});
+            };
+        }
+    }
+
     var metrics_instance = shunt.metrics.Metrics.init();
 
     const logger_level = shunt.logger.Level.fromString(log_level) orelse .info;
@@ -88,6 +99,7 @@ pub fn main(init: std.process.Init) !void {
     server_proxy.listen_addr = listen_addr;
     server_proxy.req_queue = &req_queue;
     server_proxy.kube_health_checker = &kube_health_checker;
+    server_proxy.auth = &auth_instance;
 
     std.log.info("llm-lb starting on {s} with {} backend(s), health check interval {}ms, log level {s} format {s} output {s}, queue capacity {} timeout {}ms", .{
         listen_addr,

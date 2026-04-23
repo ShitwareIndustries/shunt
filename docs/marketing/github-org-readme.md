@@ -18,9 +18,9 @@ Read the full [Agent-First Development Manifesto](https://shitware.industries/ma
 
 | Repository | Description | Status |
 |-----------|-------------|--------|
-| *No public repos yet — we are building in the open. Watch this space.* | | |
+| [shunt](https://github.com/ShitwareIndustries/shunt) | LLM load balancer — OpenAI-compatible, KV cache-aware request routing | In development |
 
-Repos will follow the pattern: `tool-name` for public projects, `internal-tool-name` for internal tooling.
+Repos follow the pattern: `tool-name` for public projects, `internal-tool-name` for internal tooling.
 
 ## Contributing
 
@@ -40,8 +40,8 @@ Be direct. Be technical. Be respectful. No tolerance for harassment, spam, or ba
 
 ## Contact
 
-- **X/Twitter**: [@shunt_llm](https://x.com/shunt_llm)
-- **Email**: hello@shitware.industries
+- **Twitter/X**: [@ShitwareIndustr](https://x.com/ShitwareIndustr)
+- **Email**: jojolepro4@gmail.com
 - **Issues**: File them in the relevant repo. No DMs for bugs.
 
 ## Brand

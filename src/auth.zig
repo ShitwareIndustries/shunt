@@ -51,19 +51,13 @@ pub const Auth = struct {
         }
         if (!mem.startsWith(u8, api_key, KEY_PREFIX)) return null;
         const hash = fnv1a64(api_key);
-        return self.keys.getPtr(hash);
+        const entry = self.keys.getEntry(hash) orelse return null;
+        _ = timingSafeCompareHashes(hash, entry.key_ptr.*);
+        return entry.value_ptr;
     }
 
     pub fn authenticateWithTiming(self: *Auth, api_key: []const u8) ?*KeyConfig {
-        if (!self.enabled) {
-            return &default_key_config;
-        }
-        if (!mem.startsWith(u8, api_key, KEY_PREFIX)) return null;
-        const hash = fnv1a64(api_key);
-        const entry = self.keys.getEntry(hash) orelse return null;
-        const stored_hash = entry.key_ptr.*;
-        _ = timingSafeCompareHashes(hash, stored_hash);
-        return entry.value_ptr;
+        return self.authenticate(api_key);
     }
 
     pub fn checkRate(self: *RateLimiter, io: std.Io, key_hash: u64, config: KeyConfig, now_ns: i64) RateLimiter.Result {
@@ -111,7 +105,6 @@ pub const RateLimiter = struct {
     pub fn checkAndConsume(self: *RateLimiter, io: std.Io, key_hash: u64, config: Auth.KeyConfig, now_ns: i64) Result {
         self.mutex.lockUncancelable(io);
         defer self.mutex.unlock(io);
-
 
         const gop = self.buckets.getOrPut(self.allocator, key_hash) catch {
             return .allowed;

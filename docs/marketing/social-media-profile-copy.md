@@ -4,7 +4,7 @@ Ready-to-deploy profile content for all Shitware Industries channels.
 
 ## Twitter/X
 
-**Handle**: @shunt_llm (first choice) / @shitware_ind (fallback)
+**Handle**: @ShitwareIndustr
 
 **Display name**: Shitware Industries
 
@@ -17,37 +17,37 @@ Agent-first developer tools. Open source. shunt — LLM load balancer. Ship it. 
 
 **Banner spec**: 1500x500px. Basalt Black background. "Shitware Industries" in Inter Bold 700, Snow White. "shunt — LLM load balancer" in JetBrains Mono Regular 400, Silver (#c0c0c0). Crimson Red horizontal rule between the two lines.
 
-**URL**: https://github.com/shitware-industries
+**URL**: https://github.com/ShitwareIndustries
 
 **Pinned tweet** (when product launches):
 ```
 shunt is an LLM load balancer that routes by KV cache state, not just connections. Open source. Zig-native. OpenAI-compatible. Swap your base URL and go.
 
-https://github.com/shitware-industries/shunt
+https://github.com/ShitwareIndustries/shunt
 ```
 
 ---
 
 ## GitHub Organization
 
-**Org name**: shitware-industries
+**Org name**: ShitwareIndustries
 
 **Description**:
 ```
 Agent-first developer tools. Open source. Built by Shitware Industries.
 ```
 
-**URL**: https://shitware.industries
+**URL**: https://github.com/ShitwareIndustries
 
 **Location**: (leave blank — no physical location)
 
-**Email**: hello@shitware.industries
+**Email**: jojolepro4@gmail.com
 
-**Twitter/X**: @shunt_llm
+**Twitter/X**: @ShitwareIndustr
 
 **Social preview spec**: 1280x640px. Basalt Black background. "Shitware Industries" in Inter Bold 700, Snow White, centered upper third. "Ship it. We dare you." in Inter Regular 400, Snow White, centered middle. Crimson Red accent line between the two text blocks.
 
-**README repo**: shitware-industries/.github — contains org profile README (see github-org-readme.md)
+**README repo**: ShitwareIndustries/.github — contains org profile README (see github-org-readme.md)
 
 ---
 
@@ -82,10 +82,11 @@ SKIP per CEO directive. Wrong audience at this stage.
 
 | Channel | Links To |
 |---------|----------|
-| Twitter/X bio | GitHub org URL |
-| GitHub org profile | Twitter/X handle, email |
-| GitHub org README | Twitter/X handle, email, manifesto |
-| shunt repo README | GitHub org, Twitter/X |
+| GitHub org profile | Email, website |
+| GitHub org README | Twitter handle, email, manifesto |
+| Twitter/X (@ShitwareIndustr) | GitHub repo URL |
+| Reddit | No org account — post from individual account |
+| Hacker News | No org account — per-launch submission |
 
 ---
 

@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Shunt — LLM proxy with KV-cache reuse routing
+# CI workflow: runs on every push and PR
+# Provides reusable ci job for release.yml via workflow_call
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: zig fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+      - name: Check formatting
+        run: zig fmt --check src/ tests/
+
+  test-unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: format
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+      - name: Run unit tests
+        run: zig build test-unit
+
+  test-integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    needs: format
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+      - name: Run integration tests
+        run: zig build test-integration
+
+  build:
+    name: Build (Debug + ReleaseSafe)
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+      - name: Build Debug
+        run: zig build
+      - name: Build ReleaseSafe
+        run: zig build -Doptimize=ReleaseSafe
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for hardcoded secrets
+        run: |
+          ! git grep -iE '(password|secret|api_key|token|credential)\s*=\s*["\x27][^"\x27]{8,}' -- src/ || (echo "Potential hardcoded secret found" && exit 1)

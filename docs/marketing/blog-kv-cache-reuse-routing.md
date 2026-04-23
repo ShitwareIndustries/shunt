@@ -2,11 +2,9 @@
 
 Every LLM request you proxy is probably wasting GPU time. Not because your models are slow — because your load balancer is dumb.
 
-Most LLM load balancers route requests the same way web load balancers have routed HTTP traffic for decades: round-robin, least-connections, or random. These algorithms were designed for stateless web servers. They work fine when every request is independent. But LLM inference is not stateless. Each backend builds a KV cache — a growing data structure that stores the attention key-value pairs from previous tokens. When a new request shares a prefix with a cached conversation, the backend can skip recomputing those tokens. This is called a KV-cache hit, and it saves real GPU compute.
+Most LLM load balancers route requests using round-robin, least-connections, or random — algorithms designed for stateless web servers. But LLM inference is not stateless. Each backend builds a KV cache — a growing data structure that stores the attention key-value pairs from previous tokens. When a new request shares a prefix with a cached conversation, the backend can skip recomputing those tokens. This is called a KV-cache hit, and it saves real GPU compute. Your load balancer does not know about any of this. It sends requests to whichever backend has the fewest connections, regardless of whether that backend has cached the relevant context.
 
-The problem: your load balancer does not know about any of this. It sends requests to whichever backend has the fewest connections, regardless of whether that backend has cached the relevant context.
-
-shunt is an LLM load balancer that routes by KV cache state, not just connection count. This post explains how it works, why it matters, and when it helps.
+shunt is an LLM load balancer built by Shitware Industries that routes by KV-cache state, not just connection count. This post explains how it works, why it matters, and when it helps.
 
 ## What is KV cache?
 
@@ -178,14 +176,6 @@ model = "llama3"
 
 # Point your existing OpenAI client at shunt instead of api.openai.com
 export OPENAI_API_BASE=http://localhost:8080/v1
-```
-
-```bash
-# Start shunt
-./shunt --config shunt.yaml
-
-# Point your existing OpenAI client at shunt instead of api.openai.com
-export OPENAI_API_BASE=http://localhost:443/v1
 ```
 
 That is it. No SDK changes. No API migration. Swap the base URL. shunt handles the routing.

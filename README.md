@@ -4,7 +4,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-dc143c.svg)](LICENSE)
 
-shunt sits between your application and multiple LLM backends. It routes requests by model group with round-robin distribution, health-checks each backend, and passes SSE streaming through unchanged. Swap your base URL — nothing else changes.
+shunt sits between your application and multiple LLM backends. It routes requests by model group, prefers backends with cached KV-state for repeated prefixes (cache-affinity routing), falls back to least-connections, health-checks each backend, and passes SSE streaming through unchanged. Swap your base URL — nothing else changes.
 
 ## Quick start
 
@@ -36,15 +36,22 @@ Run it:
 ./shunt-linux-x86_64 --config=config.toml
 ```
 
-That is it. Point your OpenAI client at `http://localhost:8080` and you are load balancing.
+Make sure you have at least one LLM backend running on the configured ports (e.g., llama.cpp on port 8081).
+
+That is it. Point your OpenAI client at `http://localhost:8080` and you are load balancing. Verify with:
+
+```sh
+curl http://localhost:8080/v1/models
+```
 
 See [config.example.toml](config.example.toml) for the full set of options.
 
 ## How it works
 
-shunt groups backends by model name. When a request arrives for `llama3`, it picks the next healthy backend in that group's round-robin rotation.
+shunt groups backends by model name. When a request arrives for `llama3`, it picks the best healthy backend in that group.
 
-- **Model-group routing** — each model gets its own backend pool, round-robin within the group
+- **KV-cache reuse routing** — shunt hashes the prompt prefix and routes to the backend that already has it cached. Cache hit = skip up to 90% of prefill compute. No cache match? Falls back to least-connections.
+- **Model-group routing** — each model gets its own backend pool
 - **Health checking** — every backend gets polled at a configurable interval; three consecutive failures marks it unhealthy and it stops receiving traffic
 - **SSE passthrough** — `text/event-stream` responses stream through without buffering, so chat completions work without modification
 - **Request queue with backpressure** — if all backends are busy, requests queue up with a configurable cap and timeout
@@ -104,14 +111,14 @@ zig build -Dtarget=x86_64-windows-gnu
 
 ## Roadmap
 
-- **KV-cache reuse routing** — route requests to the backend with the best KV-cache hit rate, cutting prefill compute for repeated contexts ([technical writeup](docs/marketing/blog-kv-cache-reuse-routing.md))
+- **vLLM backend support** — compatibility with vLLM-style servers
 - **Docker containerization** — single-container deployment with health checks
 - **Benchmark suite** — latency and throughput comparisons under load
-- **Multiple routing strategies** — least-connections, weighted round-robin, adaptive
+- **Multiple routing strategies** — weighted round-robin, adaptive, custom
 
 ## License
 
-shunt is released under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html). A `LICENSE` file will be added to this repository.
+shunt is released under the [GNU Affero General Public License v3.0](LICENSE).
 
 ---
 

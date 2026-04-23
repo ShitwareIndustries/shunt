@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Shunt — Blue-green deployment with Caddy reverse proxy
+#
+# Architecture:
+#   - shunt-blue:  active instance on internal port 8080 (mapped to 8081)
+#   - shunt-green: standby instance on internal port 8080 (mapped to 8082)
+#   - caddy:       reverse proxy on :80/:443, load-balances across both
+#                  with active health checking via /healthz
+#
+# Health checking strategy:
+#   The shunt containers use scratch (no shell/wget/curl), so Docker
+#   HEALTHCHECK inside the container is not feasible. Instead:
+#     1. Caddy probes /healthz on each upstream every 10s.
+#     2. If an upstream fails the health check, Caddy routes around it.
+#   This provides the same safety as Docker HEALTHCHECK without requiring
+#   a heavier base image.
+#
+# Usage:
+#   docker compose up -d
+#   curl http://localhost/healthz          # via Caddy
+#   curl http://localhost:8081/healthz     # direct to blue
+#   curl http://localhost:8082/healthz     # direct to green
+
+services:
+  shunt-blue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    env_file:
+      - cfg/dev.env
+    restart: unless-stopped
+
+  shunt-green:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080"
+    env_file:
+      - cfg/dev.env
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./cfg/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      shunt-blue:
+        condition: service_started
+      shunt-green:
+        condition: service_started
+    restart: unless-stopped

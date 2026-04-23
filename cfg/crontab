@@ -1,0 +1,12 @@
+# Shunt — Automated backup and sync schedules
+# SPDX-License-Identifier: AGPL-3.0-only
+# Install: crontab cfg/crontab
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# SQLite backup every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+0 */6 * * * /root/shunt/ci/backup.sh >> /var/log/shunt-backup.log 2>&1
+
+# Sync to secondary every 15 minutes
+*/15 * * * * /root/shunt/ci/sync-secondary.sh >> /var/log/shunt-sync.log 2>&1

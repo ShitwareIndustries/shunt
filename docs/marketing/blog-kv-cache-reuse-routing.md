@@ -2,15 +2,15 @@
 
 Every LLM request you proxy is probably wasting GPU time. Not because your models are slow — because your load balancer is dumb.
 
-Most LLM load balancers route requests using round-robin, least-connections, or random — algorithms designed for stateless web servers. But LLM inference is not stateless. Each backend builds a KV cache — a growing data structure that stores the attention key-value pairs from previous tokens. When a new request shares a prefix with a cached conversation, the backend can skip recomputing those tokens. This is called a KV-cache hit, and it saves real GPU compute. Your load balancer does not know about any of this. It sends requests to whichever backend has the fewest connections, regardless of whether that backend has cached the relevant context.
+Most LLM load balancers route requests using round-robin, least-connections, or random — algorithms designed for stateless web servers. But LLM inference is not stateless. Each backend builds a KV-cache — a growing data structure that stores the attention key-value pairs from previous tokens. When a new request shares a prefix with a cached conversation, the backend can skip recomputing those tokens. This is called a KV-cache hit, and it saves real GPU compute. Your load balancer does not know about any of this. It sends requests to whichever backend has the fewest connections, regardless of whether that backend has cached the relevant context.
 
 shunt is an LLM load balancer built by Shitware Industries that routes by KV-cache state, not just connection count. This post explains how it works, why it matters, and when it helps.
 
-## What is KV cache?
+## What is KV-cache?
 
-When an LLM processes a prompt, it computes attention over every token. The key and value tensors from these attention computations are stored in GPU memory — this is the KV cache. For a model like Llama 3 8B, a single conversation's KV cache can occupy hundreds of megabytes of GPU memory.
+When an LLM processes a prompt, it computes attention over every token. The key and value tensors from these attention computations are stored in GPU memory — this is the KV-cache. For a model like Llama 3 8B, a single conversation's KV-cache can occupy hundreds of megabytes of GPU memory.
 
-The KV cache grows as the conversation grows. Each new token adds key-value entries for every attention layer. For a 32-layer model, each token adds 32 entries. A 2048-token conversation has 65,536 KV-cache entries per layer. That is a lot of compute that you do not want to repeat.
+The KV-cache grows as the conversation grows. Each new token adds key-value entries for every attention layer. For a 32-layer model, each token adds 32 entries. A 2048-token conversation has 65,536 KV-cache entries per layer. That is a lot of compute that you do not want to repeat.
 
 Here is the key insight: **if a new request shares a prefix with a cached conversation, the backend can reuse the cached KV entries and skip the prefill computation for those tokens.** Instead of processing 2048 tokens, it might only need to process 50. The savings are enormous.
 
@@ -21,14 +21,14 @@ Traditional load balancing algorithms treat every request as independent:
 **Round-robin**: Request 1 goes to backend A, request 2 to backend B, request 3 to backend C, and so on. Simple. Stateless. Completely ignores cache state.
 
 ```
-Client: "What is KV cache?"
-  → Backend A (no cache for this topic)
+Client: "What is KV-cache?"
+→ Backend A (no cache for this topic)
 
-Client: "Explain it in more detail"  [same conversation prefix]
-  → Backend B (no cache — recomputes everything from scratch)
+Client: "Explain it in more detail" [same conversation prefix]
+→ Backend B (no cache — recomputes everything from scratch)
 
-Client: "Give me a code example"  [same conversation prefix]
-  → Backend C (no cache — recomputes everything again)
+Client: "Give me a code example" [same conversation prefix]
+→ Backend C (no cache — recomputes everything again)
 ```
 
 Three requests, same conversation prefix, three full prefill computations. Two of them were wasted.
@@ -75,8 +75,8 @@ If the backend that cached this prefix is healthy and has capacity, shunt routes
 After routing, shunt updates the cache affinity table with the new assignment. Over time, the affinity table converges on a stable mapping where each conversation prefix tends to hit the same backend — maximizing cache reuse.
 
 ```
-Client: "What is KV cache?"
-  → Backend A (cache miss — full prefill, 2048 tokens)
+Client: "What is KV-cache?"
+→ Backend A (cache miss — full prefill, 2048 tokens)
   → Cache table: prefix_hash X → Backend A
 
 Client: "Explain it in more detail"
@@ -92,7 +92,7 @@ Three requests, same backend, two cache hits. The second request processes 50 to
 
 ## The numbers
 
-Here is where we have to be honest: shunt does not have production benchmarks yet. We are building in the open and have not shipped. The numbers below are estimates based on known KV-cache behavior in llama.cpp and typical inference workloads. We will publish real benchmarks when we have them. Do not make purchasing decisions based on estimates.
+Here is where we have to be honest: shunt does not have production benchmarks yet. The numbers below are estimates based on known KV-cache behavior in llama.cpp and typical inference workloads. We will publish real benchmarks when we have them. Do not make purchasing decisions based on estimates.
 
 ### Estimated cost impact
 
@@ -104,7 +104,7 @@ For a typical multi-backend setup with repeated system prompts:
 | Multi-turn chat (10 turns, same backend) | Sum of all turns | Only new tokens per turn | 40-60% fewer total tokens |
 | RAG with shared context | Full context + query | Query only (context cached) | 70-90% fewer tokens |
 
-At current GPU pricing (approximately $0.50/GPU-hour for an A100 equivalent), saving 500 tokens per request at 1000 req/s translates to meaningful cost reduction over a month. The exact number depends on your model, your hardware, and your traffic pattern. We will share concrete benchmarks when shunt is in production.
+At current GPU pricing (approximately $0.50/GPU-hour for an A100 equivalent), saving 500 tokens per request at 1000 req/s translates to meaningful cost reduction over a month. The exact number depends on your model, your hardware, and your traffic pattern. We will share concrete benchmarks as production deployments report back.
 
 ### Latency impact
 
@@ -121,7 +121,7 @@ Not every workload benefits equally from cache-aware routing. Here is when it ma
 ### High-benefit scenarios
 
 - **API gateways with fixed system prompts** — every request includes the same system prompt. Cache it once, reuse it forever.
-- **Multi-turn conversations** — each turn builds on the previous context. Routing to the same backend preserves the full KV cache.
+- **Multi-turn conversations** — each turn builds on the previous context. Routing to the same backend preserves the full KV-cache.
 - **RAG applications** — retrieval-augmented generation often reuses the same retrieved context across queries.
 - **Batch processing with shared context** — processing multiple queries against the same document or knowledge base.
 
@@ -147,7 +147,7 @@ Generic load balancers (nginx, HAProxy) can distribute LLM traffic, but they hav
 
 ## Getting started
 
-When shunt is ready, setup looks like this:
+Setup looks like this:
 
 ```toml
 # config.toml
@@ -192,13 +192,17 @@ Honest limitations, not hedging:
 
 4. **No distributed cache yet.** KV-cache state is tracked per-shunt-instance. If you run multiple shunt instances, they do not share affinity tables. This is fine for single-node setups; multi-node cache coordination is a harder problem.
 
-5. **Estimates, not benchmarks.** The cost savings numbers above are projections. We will not know the real numbers until shunt runs in production. If the real numbers are worse than estimates, we will say so.
+5. **Estimates, not benchmarks.** The cost savings numbers above are projections. We will not know the real numbers until we have production deployment data. If the real numbers are worse than estimates, we will say so.
 
 ## Why this matters
 
 LLM inference is expensive. GPU time is the dominant cost for anyone running models at scale. Every token that gets recomputed because of a cache miss is a token you paid for but did not need to compute. Over millions of requests, those wasted tokens add up to real money.
 
-KV-cache reuse routing is not a new idea — operating systems have cached frequently accessed data for decades. Database connection pools reuse warm connections. CDNs cache static content at the edge. The principle is the same: cache what you can, compute what you must. shunt applies this principle to LLM inference.
+KV-cache reuse routing is not a new idea — the same principle shows up across infrastructure:
+
+- **CDNs** cache static content at the edge so browsers skip round-trips to the origin. shunt caches LLM prompt prefixes at the proxy so backends skip recomputing known tokens. Same principle, different layer.
+- **Connection pools** reuse warm database connections instead of opening new ones for every query. shunt reuses warm KV-cache entries instead of computing from scratch for every request. Same idea, different resource.
+- **TLB caching** avoids redundant page table walks by caching recent translations. KV-cache reuse avoids redundant prompt processing by caching recent attention states. Cache what you can, compute what you must.
 
 If you are running multiple LLM backends and routing requests with round-robin or least-connections, you are leaving GPU time on the table. Prefix-aware routing is the fix.
 

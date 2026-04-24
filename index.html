@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shunt — LLM Load Balancer</title>
+<meta name="description" content="shunt is an LLM load balancer with KV-cache reuse routing. OpenAI-compatible. Drop-in. Open source under AGPL v3.">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+--color-basalt: #1a1a1a;
+--color-void: #0d0d0d;
+--color-obsidian: #2a2a2a;
+--color-graphite: #3a3a3a;
+--color-ash: #5a5a5a;
+--color-fog: #8a8a8a;
+--color-cloud: #d4d4d4;
+--color-smoke: #e8e8e8;
+--color-snow: #f8f8f8;
+--color-bleach: #ffffff;
+--color-crimson: #dc143c;
+--color-gold: #ffd700;
+--color-silver: #c0c0c0;
+--font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+--space-2: 8px;
+--space-3: 12px;
+--space-4: 16px;
+--space-5: 20px;
+--space-6: 24px;
+--space-8: 32px;
+--space-12: 48px;
+--space-16: 64px;
+--space-20: 80px;
+--max-width: 1200px;
+--radius: 8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+font-family: var(--font-body);
+font-weight: 400;
+line-height: 1.6;
+color: var(--color-snow);
+background-color: var(--color-basalt);
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--color-crimson); text-decoration: underline; }
+a:hover { color: var(--color-gold); }
+a:focus-visible { outline: 2px solid var(--color-crimson); outline-offset: 2px; }
+
+.container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6); }
+@media (min-width: 768px) { .container { padding: 0 var(--space-8); } }
+@media (min-width: 1024px) { .container { padding: 0 var(--space-12); } }
+
+header {
+background-color: var(--color-void);
+border-bottom: 1px solid var(--color-graphite);
+padding: var(--space-4) 0;
+}
+header nav { display: flex; justify-content: space-between; align-items: center; }
+.logo {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 18px;
+color: var(--color-snow);
+text-decoration: none;
+}
+.logo:hover { color: var(--color-snow); }
+nav a { font-size: 14px; color: var(--color-fog); text-decoration: none; transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+nav a:hover { color: var(--color-snow); }
+nav .nav-links { display: flex; gap: var(--space-5); }
+
+.hero {
+background-color: var(--color-void);
+padding: var(--space-16) 0 var(--space-20);
+text-align: center;
+border-bottom: 1px solid var(--color-graphite);
+}
+.hero h1 {
+font-weight: 900;
+font-size: 40px;
+line-height: 1.1;
+color: var(--color-snow);
+margin-bottom: var(--space-4);
+}
+.hero .tagline {
+font-family: var(--font-mono);
+font-size: 16px;
+color: var(--color-crimson);
+font-weight: 400;
+margin-bottom: var(--space-8);
+display: block;
+}
+.hero p {
+font-size: 18px;
+font-weight: 500;
+color: var(--color-fog);
+max-width: 640px;
+margin: 0 auto var(--space-8);
+line-height: 1.6;
+}
+@media (min-width: 768px) {
+.hero h1 { font-size: 56px; }
+.hero p { font-size: 20px; }
+}
+
+.cta-group {
+display: flex;
+justify-content: center;
+gap: var(--space-4);
+flex-wrap: wrap;
+}
+.cta-primary {
+display: inline-block;
+background-color: var(--color-crimson);
+color: var(--color-snow);
+font-weight: 600;
+font-size: 16px;
+padding: var(--space-3) var(--space-6);
+border-radius: var(--radius);
+text-decoration: none;
+transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cta-primary:hover { background-color: #b01030; color: var(--color-snow); }
+.cta-secondary {
+display: inline-block;
+background-color: var(--color-obsidian);
+color: var(--color-snow);
+font-weight: 600;
+font-size: 16px;
+padding: var(--space-3) var(--space-6);
+border-radius: var(--radius);
+border: 1px solid var(--color-graphite);
+text-decoration: none;
+transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cta-secondary:hover { background-color: var(--color-graphite); color: var(--color-snow); }
+
+section { padding: var(--space-16) 0; }
+section h2 {
+font-weight: 700;
+font-size: 24px;
+line-height: 1.3;
+margin-bottom: var(--space-8);
+color: var(--color-snow);
+}
+@media (min-width: 768px) { section h2 { font-size: 30px; } }
+
+.features {
+display: grid;
+gap: var(--space-6);
+}
+@media (min-width: 768px) { .features { grid-template-columns: 1fr 1fr; } }
+
+.feature-card {
+background-color: var(--color-obsidian);
+border: 1px solid var(--color-graphite);
+border-radius: var(--radius);
+padding: var(--space-6);
+}
+.feature-card h3 {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 16px;
+color: var(--color-gold);
+margin-bottom: var(--space-3);
+}
+.feature-card p {
+font-size: 15px;
+color: var(--color-fog);
+line-height: 1.6;
+}
+
+.quickstart {
+background-color: var(--color-obsidian);
+border: 1px solid var(--color-graphite);
+border-radius: var(--radius);
+padding: var(--space-6);
+max-width: 720px;
+margin: 0 auto;
+}
+.quickstart h3 {
+font-weight: 700;
+font-size: 20px;
+margin-bottom: var(--space-4);
+color: var(--color-snow);
+}
+.quickstart pre {
+background-color: var(--color-void);
+border: 1px solid var(--color-graphite);
+border-radius: var(--radius);
+padding: var(--space-4);
+overflow-x: auto;
+margin-bottom: var(--space-4);
+}
+.quickstart code {
+font-family: var(--font-mono);
+font-size: 14px;
+color: var(--color-cloud);
+line-height: 1.7;
+}
+.quickstart .comment { color: var(--color-ash); }
+.quickstart .flag { color: var(--color-crimson); }
+
+footer {
+background-color: var(--color-void);
+border-top: 1px solid var(--color-graphite);
+padding: var(--space-8) 0;
+text-align: center;
+}
+footer p { font-size: 14px; color: var(--color-ash); margin-bottom: var(--space-2); }
+footer .product-name { font-family: var(--font-mono); font-weight: 400; color: var(--color-fog); }
+footer .license { font-size: 12px; color: var(--color-ash); margin-top: var(--space-4); }
+footer a { color: var(--color-fog); }
+footer a:hover { color: var(--color-snow); }
+
+@media (prefers-reduced-motion: reduce) {
+* { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+<nav class="container">
+<a href="/" class="logo">$ shunt</a>
+<div class="nav-links">
+<a href="https://github.com/ShitwareIndustries/shunt">GitHub</a>
+<a href="/donate/">Donate</a>
+</div>
+</nav>
+</header>
+
+<section class="hero">
+<div class="container">
+<h1>LLM Load Balancer</h1>
+<span class="tagline">Ship it. We dare you.</span>
+<p>shunt sits between your application and multiple LLM backends. It routes requests by model group, prefers backends with cached KV-state for repeated prefixes, and passes SSE streaming through unchanged. Swap your base URL &mdash; nothing else changes.</p>
+<div class="cta-group">
+<a class="cta-primary" href="https://github.com/ShitwareIndustries/shunt/releases/latest">Download</a>
+<a class="cta-secondary" href="https://github.com/ShitwareIndustries/shunt">Source Code</a>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<h2>Features</h2>
+<div class="features">
+<div class="feature-card">
+<h3>KV-cache reuse routing</h3>
+<p>Hashes the prompt prefix and routes to the backend that already has it cached. Cache hit means skipping up to 90% of prefill compute. No match? Falls back to least-connections.</p>
+</div>
+<div class="feature-card">
+<h3>OpenAI-compatible</h3>
+<p>Drop-in replacement. Supports <code>/v1/chat/completions</code>, <code>/v1/completions</code>, <code>/v1/models</code>, and <code>/health</code>. Your existing client libraries work without modification.</p>
+</div>
+<div class="feature-card">
+<h3>Health checking</h3>
+<p>Every backend gets polled at a configurable interval. Three consecutive failures marks it unhealthy and it stops receiving traffic until it recovers.</p>
+</div>
+<div class="feature-card">
+<h3>SSE passthrough</h3>
+<p><code>text/event-stream</code> responses stream through without buffering. Chat completions work out of the box with streaming enabled.</p>
+</div>
+<div class="feature-card">
+<h3>Request queue + backpressure</h3>
+<p>If all backends are busy, requests queue up with a configurable cap and timeout. No silent drops.</p>
+</div>
+<div class="feature-card">
+<h3>Model-group routing</h3>
+<p>Each model gets its own backend pool. Route <code>llama3</code> to one set of servers and <code>mistral</code> to another.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="quickstart">
+<h2>Quick Start</h2>
+<h3>1. Download</h3>
+<pre><code>curl -LO https://github.com/ShitwareIndustries/shunt/releases/latest/download/shunt-linux-x86_64
+chmod +x shunt-linux-x86_64</code></pre>
+<h3>2. Configure</h3>
+<pre><code><span class="comment"># config.toml</span>
+[balancer]
+listen_addr = <span class="flag">"0.0.0.0:8080"</span>
+
+[[models]]
+id = <span class="flag">"primary"</span>
+address = <span class="flag">"http://127.0.0.1:8081"</span>
+model = <span class="flag">"llama3"</span></code></pre>
+<h3>3. Run</h3>
+<pre><code>./shunt-linux-x86_64 <span class="flag">--config</span>=config.toml</code></pre>
+<p style="font-size:15px;color:var(--color-fog);">Point your OpenAI client at <code style="color:var(--color-cloud);">http://localhost:8080</code> and you are load balancing.</p>
+</div>
+</div>
+</section>
+
+<footer>
+<div class="container">
+<p><a href="https://github.com/ShitwareIndustries">Shitware Industries</a></p>
+<p class="product-name">shunt &mdash; LLM load balancer</p>
+<p class="license">Licensed under AGPL v3. No exceptions.</p>
+</div>
+</footer>
+
+</body>
+</html>

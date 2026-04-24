@@ -189,8 +189,18 @@ The image runs as a non-root user (`shunt`) and is built on Alpine 3.21 for mini
 
 ## Roadmap
 
+### v0.2.0 (shipped)
+
+- **Docker containerization** — multi-stage alpine build, ~4.2MB image
 - **Benchmark suite** — latency and throughput comparisons under load
-- **Multiple routing strategies** — weighted round-robin, adaptive, custom
+- **vLLM backend support** — dedicated health checks, extended timeouts
+- **Multiple routing strategies** — least-connections, weighted, random, latency-based
+
+### v0.3.0 (planned)
+
+- **TLS/HTTPS support** — native TLS termination
+- **Config hot-reload** — SIGHUP to reload backends without restart
+- **Admin API** — runtime backend add/remove, metrics export
 
 ## License
 

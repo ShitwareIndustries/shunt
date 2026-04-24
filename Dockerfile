@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Shunt — LLM proxy with KV-cache reuse routing
-# Multi-stage Dockerfile: build with Zig SDK, run from scratch
+# Multi-stage Dockerfile: build with Zig SDK, run from alpine for healthcheck
 
 # =============================================================================
 # Stage 1: Build
@@ -10,31 +10,29 @@ FROM ziglang/zig:0.16.0 AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests first for better Docker layer caching.
 COPY build.zig build.zig.zon ./
 COPY src/ src/
 
-RUN zig build -Doptimize=ReleaseSafe
+RUN zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux-musl
 
 # =============================================================================
 # Stage 2: Runtime
-# Uses scratch for the smallest possible image with zero OS attack surface.
-#
-# Tradeoff: scratch has no shell, no wget, no curl — Docker HEALTHCHECK
-# cannot run inside the container. We handle health checking two ways:
-#   1. Caddy reverse proxy probes /healthz upstream (see Caddyfile).
-#   2. docker-compose.yml uses an external healthcheck (disabled on the
-#      container itself; compose healthcheck would need a tool like wget
-#      which is absent in scratch).
-#
-# If Docker-level HEALTHCHECK is required, switch the runtime image to
-# alpine:3.21 and add `wget` or `curl`. The scratch approach is preferred
-# for production because it eliminates an entire OS from the attack surface.
+# Uses alpine for minimal footprint with HEALTHCHECK support (wget).
+# - Non-root user for security
+# - HEALTHCHECK hitting /health every 30s
+# - Config via mount (/etc/shunt/config.toml) or env vars
 # =============================================================================
-FROM scratch
+FROM alpine:3.21
 
-COPY --from=builder /app/zig-out/bin/shunt /shunt
+RUN adduser -D -s /sbin/nologin shunt
+
+COPY --from=builder /app/zig-out/bin/shunt /usr/local/bin/shunt
+
+USER shunt
 
 EXPOSE 8080
 
-ENTRYPOINT ["/shunt"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/shunt"]

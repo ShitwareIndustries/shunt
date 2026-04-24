@@ -62,32 +62,32 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-const request_id_mod = b.createModule(.{
-    .root_source_file = b.path("src/request_id.zig"),
-    .target = target,
-    .optimize = optimize,
-});
+    const request_id_mod = b.createModule(.{
+        .root_source_file = b.path("src/request_id.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
-const auth_mod = b.createModule(.{
-    .root_source_file = b.path("src/auth.zig"),
-    .target = target,
-    .optimize = optimize,
-});
+    const auth_mod = b.createModule(.{
+        .root_source_file = b.path("src/auth.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
     const proxy_mod = b.createModule(.{
         .root_source_file = b.path("src/proxy.zig"),
         .target = target,
         .optimize = optimize,
     });
-proxy_mod.addImport("backend_pool", backend_pool_mod);
-proxy_mod.addImport("openai", openai_mod);
-proxy_mod.addImport("request_queue", request_queue_mod);
-proxy_mod.addImport("cache_router", cache_router_mod);
-proxy_mod.addImport("metrics", metrics_mod);
-proxy_mod.addImport("health", health_mod);
-proxy_mod.addImport("logger", logger_mod);
-proxy_mod.addImport("request_id", request_id_mod);
-proxy_mod.addImport("auth", auth_mod);
+    proxy_mod.addImport("backend_pool", backend_pool_mod);
+    proxy_mod.addImport("openai", openai_mod);
+    proxy_mod.addImport("request_queue", request_queue_mod);
+    proxy_mod.addImport("cache_router", cache_router_mod);
+    proxy_mod.addImport("metrics", metrics_mod);
+    proxy_mod.addImport("health", health_mod);
+    proxy_mod.addImport("logger", logger_mod);
+    proxy_mod.addImport("request_id", request_id_mod);
+    proxy_mod.addImport("auth", auth_mod);
 
     const root_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
@@ -103,9 +103,9 @@ proxy_mod.addImport("auth", auth_mod);
     root_mod.addImport("cache_router", cache_router_mod);
     root_mod.addImport("metrics", metrics_mod);
     root_mod.addImport("health", health_mod);
-root_mod.addImport("logger", logger_mod);
-root_mod.addImport("request_id", request_id_mod);
-root_mod.addImport("auth", auth_mod);
+    root_mod.addImport("logger", logger_mod);
+    root_mod.addImport("request_id", request_id_mod);
+    root_mod.addImport("auth", auth_mod);
 
     const shunt_mod = b.addModule("shunt", .{
         .root_source_file = b.path("src/root.zig"),
@@ -121,9 +121,9 @@ root_mod.addImport("auth", auth_mod);
     shunt_mod.addImport("cache_router", cache_router_mod);
     shunt_mod.addImport("metrics", metrics_mod);
     shunt_mod.addImport("health", health_mod);
-shunt_mod.addImport("logger", logger_mod);
-shunt_mod.addImport("request_id", request_id_mod);
-shunt_mod.addImport("auth", auth_mod);
+    shunt_mod.addImport("logger", logger_mod);
+    shunt_mod.addImport("request_id", request_id_mod);
+    shunt_mod.addImport("auth", auth_mod);
 
     const exe = b.addExecutable(.{
         .name = "shunt",
@@ -136,6 +136,7 @@ shunt_mod.addImport("auth", auth_mod);
             },
         }),
     });
+    exe.root_module.strip = optimize != .Debug;
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -188,17 +189,17 @@ shunt_mod.addImport("auth", auth_mod);
         .root_module = health_mod,
     });
 
-const logger_tests = b.addTest(.{
-    .root_module = logger_mod,
-});
+    const logger_tests = b.addTest(.{
+        .root_module = logger_mod,
+    });
 
-const request_id_tests = b.addTest(.{
-    .root_module = request_id_mod,
-});
+    const request_id_tests = b.addTest(.{
+        .root_module = request_id_mod,
+    });
 
-const auth_tests = b.addTest(.{
-    .root_module = auth_mod,
-});
+    const auth_tests = b.addTest(.{
+        .root_module = auth_mod,
+    });
 
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
@@ -215,9 +216,9 @@ const auth_tests = b.addTest(.{
     test_unit_step.dependOn(&b.addRunArtifact(cache_router_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(metrics_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(health_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(logger_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(request_id_tests).step);
-test_unit_step.dependOn(&b.addRunArtifact(auth_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(logger_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(request_id_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(auth_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
 
     const integration_mod = b.createModule(.{

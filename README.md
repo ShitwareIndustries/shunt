@@ -109,10 +109,53 @@ zig build -Dtarget=aarch64-macos
 zig build -Dtarget=x86_64-windows-gnu
 ```
 
+## Docker
+
+Build and run with Docker:
+
+```sh
+docker build -t shunt .
+```
+
+Run with a mounted config file:
+
+```sh
+docker run -d \
+  --name shunt \
+  -p 8080:8080 \
+  -v $(pwd)/config.toml:/etc/shunt/config.toml:ro \
+  -e LB_CONFIG=/etc/shunt/config.toml \
+  shunt
+```
+
+Run with environment variables instead of a config file:
+
+```sh
+docker run -d \
+  --name shunt \
+  -p 8080:8080 \
+  -e LB_LISTEN_ADDR=0.0.0.0:8080 \
+  -e LB_LOG_LEVEL=info \
+  shunt
+```
+
+The image includes a Docker `HEALTHCHECK` that probes `/health` every 30 seconds. Check health status:
+
+```sh
+docker inspect --format='{{.State.Health.Status}}' shunt
+```
+
+Blue-green deployment with Caddy:
+
+```sh
+docker compose up -d
+```
+
+The image runs as a non-root user (`shunt`) and is built on Alpine 3.21 for minimal size with healthcheck support.
+
 ## Roadmap
 
 - **vLLM backend support** — compatibility with vLLM-style servers
-- **Docker containerization** — single-container deployment with health checks
 - **Benchmark suite** — latency and throughput comparisons under load
 - **Multiple routing strategies** — weighted round-robin, adaptive, custom
 

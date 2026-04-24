@@ -2,24 +2,24 @@
 # Shunt — Blue-green deployment with Caddy reverse proxy
 #
 # Architecture:
-#   - shunt-blue:  active instance on internal port 8080 (mapped to 8081)
-#   - shunt-green: standby instance on internal port 8080 (mapped to 8082)
-#   - caddy:       reverse proxy on :80/:443, load-balances across both
-#                  with active health checking via /healthz
+# - shunt-blue: active instance on internal port 8080 (mapped to 8081)
+# - shunt-green: standby instance on internal port 8080 (mapped to 8082)
+# - caddy: reverse proxy on :80/:443, load-balances across both
+#   with active health checking via /health
 #
 # Health checking strategy:
-#   The shunt containers use scratch (no shell/wget/curl), so Docker
-#   HEALTHCHECK inside the container is not feasible. Instead:
-#     1. Caddy probes /healthz on each upstream every 10s.
-#     2. If an upstream fails the health check, Caddy routes around it.
-#   This provides the same safety as Docker HEALTHCHECK without requiring
-#   a heavier base image.
+# Docker HEALTHCHECK (via wget in alpine runtime) probes /health every 30s.
+# Caddy additionally probes /health on each upstream for request-level routing.
+#
+# Config can be provided via:
+# 1. Mounted config file: ./config.toml:/etc/shunt/config.toml:ro
+# 2. Environment variables: LB_LISTEN_ADDR, LB_HEALTH_CHECK_INTERVAL, etc.
 #
 # Usage:
 #   docker compose up -d
-#   curl http://localhost/healthz          # via Caddy
-#   curl http://localhost:8081/healthz     # direct to blue
-#   curl http://localhost:8082/healthz     # direct to green
+#   curl http://localhost/health          # via Caddy
+#   curl http://localhost:8081/health     # direct to blue
+#   curl http://localhost:8082/health     # direct to green
 
 services:
   shunt-blue:
@@ -28,8 +28,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8081:8080"
-    env_file:
-      - cfg/dev.env
+    volumes:
+      - ./config.example.toml:/etc/shunt/config.toml:ro
+    environment:
+      - LB_CONFIG=/etc/shunt/config.toml
     restart: unless-stopped
 
   shunt-green:
@@ -38,8 +40,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8082:8080"
-    env_file:
-      - cfg/dev.env
+    volumes:
+      - ./config.example.toml:/etc/shunt/config.toml:ro
+    environment:
+      - LB_CONFIG=/etc/shunt/config.toml
     restart: unless-stopped
 
   caddy:

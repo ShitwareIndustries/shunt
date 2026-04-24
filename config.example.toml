@@ -38,3 +38,19 @@ model = "llama3"
 id = "gpt-4-backend"
 address = "http://127.0.0.1:8083"
 model = "gpt-4"
+
+# vLLM backend example
+# vLLM uses the OpenAI-compatible API on port 8000 by default.
+# Set backend_type = "vllm" for vLLM-specific health checks and timeouts.
+# [[models]]
+# id = "vllm-primary"
+# address = "http://127.0.0.1:8000"
+# model = "llama3"
+# backend_type = "vllm"
+
+# OpenAI-compatible remote backend example
+# [[models]]
+# id = "openai-remote"
+# address = "https://api.openai.com"
+# model = "gpt-4"
+# backend_type = "openai"

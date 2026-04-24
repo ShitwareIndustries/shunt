@@ -64,19 +64,53 @@ Endpoints are OpenAI-compatible: `/v1/chat/completions`, `/v1/completions`, `/v1
 
 ```toml
 [balancer]
-listen_addr = "0.0.0.0:8080"       # address shunt listens on
-health_check_interval_ms = 2000     # how often to ping backends
-max_buffered_requests = 64          # queue cap before rejecting
+listen_addr = "0.0.0.0:8080" # address shunt listens on
+health_check_interval_ms = 2000 # how often to ping backends
+max_buffered_requests = 64 # queue cap before rejecting
 buffered_request_timeout_ms = 30000 # how long a queued request waits
-log_level = "info"                  # debug, info, warn, error
+log_level = "info" # debug, info, warn, error
 
 [[models]]
-id = "llama3-primary"               # arbitrary identifier
-address = "http://127.0.0.1:8081"   # backend URL
-model = "llama3"                    # model name for routing group
+id = "llama3-primary" # arbitrary identifier
+address = "http://127.0.0.1:8081" # backend URL
+model = "llama3" # model name for routing group
 ```
 
 Add more `[[models]]` entries for additional backends.
+
+### Backend types
+
+Each model entry supports an optional `backend_type` field that controls health-check behavior and default timeouts:
+
+| `backend_type` | Health endpoint | Health response | Connect timeout | Request timeout |
+|----------------|----------------|-----------------|-----------------|-----------------|
+| `llama_cpp` (default) | `/health` | slot info JSON | 5 s | 30 s |
+| `vllm` | `/health` | `{"status":"ok"}` or `{"status":"running"}` | 10 s | 120 s |
+| `openai` | `/v1/models` | HTTP status only | 10 s | 60 s |
+
+```toml
+# llama.cpp backend (default, backend_type can be omitted)
+[[models]]
+id = "llama3-primary"
+address = "http://127.0.0.1:8081"
+model = "llama3"
+
+# vLLM backend
+[[models]]
+id = "vllm-primary"
+address = "http://127.0.0.1:8000"
+model = "llama3"
+backend_type = "vllm"
+
+# OpenAI-compatible remote backend
+[[models]]
+id = "openai-remote"
+address = "https://api.openai.com"
+model = "gpt-4"
+backend_type = "openai"
+```
+
+vLLM backends use longer timeouts by default (10 s connect, 120 s request) because inference on large models can take longer to start and complete. OpenAI remote backends also use longer connect timeouts due to network latency.
 
 ### CLI flags
 
@@ -155,7 +189,6 @@ The image runs as a non-root user (`shunt`) and is built on Alpine 3.21 for mini
 
 ## Roadmap
 
-- **vLLM backend support** — compatibility with vLLM-style servers
 - **Benchmark suite** — latency and throughput comparisons under load
 - **Multiple routing strategies** — weighted round-robin, adaptive, custom
 

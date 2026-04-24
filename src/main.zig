@@ -36,11 +36,14 @@ pub fn main(init: std.process.Init) !void {
 
     if (app_config.models.items.len > 0) {
         for (app_config.models.items, 0..) |m, i| {
-            try pool.addBackend(.{
+            var entry: shunt.backend_pool.BackendEntry = .{
                 .id = m.id,
                 .address = m.address,
                 .model = m.model,
-            });
+                .backend_type = m.backend_type,
+            };
+            entry.defaultTimeouts();
+            try pool.addBackend(entry);
             try router.addBackendToGroup(m.model, i);
         }
     } else {

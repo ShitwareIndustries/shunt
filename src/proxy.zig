@@ -303,6 +303,9 @@ pub const ReverseProxy = struct {
             self.pool.selectBackend();
 
         if (backend_entry) |be| {
+            be.beginRequest();
+            defer be.endRequest();
+
             const is_cache_hit = prefix_hash != backend_pool.BackendEntry.NO_AFFINITY and
                 be.prefix_affinity == prefix_hash and
                 !be.isAffinityExpired(now_ms, self.router.cache_router.cache_ttl_ms);
@@ -337,6 +340,7 @@ pub const ReverseProxy = struct {
 
             const request_end = std.Io.Timestamp.now(io, .awake);
             const latency_us: u64 = @intCast(@divTrunc(request_end.toNanoseconds() - request_start.toNanoseconds(), 1000));
+            be.recordLatency(latency_us);
 
             req_logger.info(io, "proxy", "request completed", &.{
                 .{ .key = "method", .value = .{ .string = @tagName(head.method) } },

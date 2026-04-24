@@ -25,13 +25,13 @@ pub fn main(init: std.process.Init) !void {
     const max_buffered = shunt.cli.resolveMaxBufferedRequests(cli_config, app_config.max_buffered_requests);
     const buffered_timeout = shunt.cli.resolveBufferedRequestTimeout(cli_config, app_config.buffered_request_timeout_ms);
 
-    var pool = shunt.backend_pool.BackendPool.init(allocator);
+    var pool = shunt.backend_pool.BackendPool.initWithStrategy(allocator, app_config.routing_strategy);
     defer pool.deinit();
 
     var router = if (app_config.cache_enabled)
-        shunt.openai.ModelRouter.initWithTTL(allocator, app_config.cache_ttl_ms)
+        shunt.openai.ModelRouter.initWithStrategy(allocator, app_config.cache_ttl_ms, app_config.routing_strategy)
     else
-        shunt.openai.ModelRouter.initDisabled(allocator);
+        shunt.openai.ModelRouter.initDisabledWithStrategy(allocator, app_config.routing_strategy);
     defer router.deinit();
 
     if (app_config.models.items.len > 0) {
@@ -41,6 +41,7 @@ pub fn main(init: std.process.Init) !void {
                 .address = m.address,
                 .model = m.model,
                 .backend_type = m.backend_type,
+                .weight = m.weight,
             };
             entry.defaultTimeouts();
             try pool.addBackend(entry);
@@ -104,9 +105,10 @@ pub fn main(init: std.process.Init) !void {
     server_proxy.kube_health_checker = &kube_health_checker;
     server_proxy.auth = &auth_instance;
 
-    std.log.info("llm-lb starting on {s} with {} backend(s), health check interval {}ms, log level {s} format {s} output {s}, queue capacity {} timeout {}ms", .{
+    std.log.info("llm-lb starting on {s} with {} backend(s), routing strategy {s}, health check interval {}ms, log level {s} format {s} output {s}, queue capacity {} timeout {}ms", .{
         listen_addr,
         pool.backends.items.len,
+        @tagName(app_config.routing_strategy),
         health_check_interval,
         log_level,
         log_format,

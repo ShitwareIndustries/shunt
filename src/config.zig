@@ -13,6 +13,7 @@ pub const Config = struct {
     cache_enabled: bool = true,
     cache_ttl_ms: u64 = 300000,
     cache_max_entries_per_backend: usize = 256,
+    routing_strategy: backend_pool.RoutingStrategy = .round_robin,
     models: std.ArrayList(ModelConfig),
     auth_enabled: bool = false,
     auth_default_rate_limit: u64 = 10,
@@ -24,6 +25,7 @@ pub const Config = struct {
         address: []const u8,
         model: []const u8,
         backend_type: backend_pool.BackendType = .llama_cpp,
+        weight: u32 = 1,
     };
 
     pub const AuthKeyConfig = struct {
@@ -164,6 +166,11 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     config.logging_format = unquote(val);
                 } else if (mem.eql(u8, key, "logging_output")) {
                     config.logging_output = unquote(val);
+                } else if (mem.eql(u8, key, "routing_strategy")) {
+                    const v = unquote(val);
+                    config.routing_strategy = backend_pool.RoutingStrategy.fromString(v) orelse {
+                        return ParseError.InvalidValue;
+                    };
                 }
             },
             .cache => {
@@ -207,6 +214,10 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     } else {
                         return ParseError.InvalidValue;
                     }
+                } else if (mem.eql(u8, key, "weight")) {
+                    pending_model.?.weight = std.fmt.parseInt(u32, unquote(val), 10) catch {
+                        return ParseError.InvalidValue;
+                    };
                 }
             },
             .auth => {
@@ -784,4 +795,109 @@ test "parse TOML config [[models]] mixed backend types" {
     try std.testing.expect(cfg.models.items[0].backend_type == .llama_cpp);
     try std.testing.expect(cfg.models.items[1].backend_type == .vllm);
     try std.testing.expect(cfg.models.items[2].backend_type == .openai);
+}
+
+test "parse TOML config routing_strategy defaults to round_robin" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.routing_strategy == .round_robin);
+}
+
+test "parse TOML config routing_strategy = least_connections" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[balancer]
+        \\routing_strategy = "least_connections"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.routing_strategy == .least_connections);
+}
+
+test "parse TOML config routing_strategy accepts hyphenated form" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[balancer]
+        \\routing_strategy = "latency-based"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.routing_strategy == .latency_based);
+}
+
+test "parse TOML config routing_strategy invalid returns error" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[balancer]
+        \\routing_strategy = "invalid"
+        \\
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    const result = parse(allocator, toml);
+    try std.testing.expect(result == ParseError.InvalidValue);
+}
+
+test "parse TOML config [[models]] weight defaults to 1" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].weight == 1);
+}
+
+test "parse TOML config [[models]] weight overrides default" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "heavy"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+        \\weight = 5
+        \\
+        \\[[models]]
+        \\id = "light"
+        \\address = "http://localhost:8082"
+        \\model = "test"
+        \\weight = 1
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].weight == 5);
+    try std.testing.expect(cfg.models.items[1].weight == 1);
 }

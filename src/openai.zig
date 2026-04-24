@@ -36,6 +36,7 @@ pub const ModelRouter = struct {
     allocator: mem.Allocator,
     rr_counters: std.ArrayList(u32),
     cache_router: cache_router.CacheRouter,
+    strategy: backend_pool.RoutingStrategy = .round_robin,
 
     pub fn init(allocator: mem.Allocator) ModelRouter {
         return .{
@@ -57,6 +58,17 @@ pub const ModelRouter = struct {
         };
     }
 
+    pub fn initWithStrategy(allocator: mem.Allocator, cache_ttl_ms: u64, strategy: backend_pool.RoutingStrategy) ModelRouter {
+        return .{
+            .groups = .empty,
+            .group_map = .empty,
+            .allocator = allocator,
+            .rr_counters = .empty,
+            .cache_router = .{ .cache_ttl_ms = cache_ttl_ms },
+            .strategy = strategy,
+        };
+    }
+
     pub fn initDisabled(allocator: mem.Allocator) ModelRouter {
         return .{
             .groups = .empty,
@@ -64,6 +76,17 @@ pub const ModelRouter = struct {
             .allocator = allocator,
             .rr_counters = .empty,
             .cache_router = .{ .cache_ttl_ms = 0, .disabled = true },
+        };
+    }
+
+    pub fn initDisabledWithStrategy(allocator: mem.Allocator, strategy: backend_pool.RoutingStrategy) ModelRouter {
+        return .{
+            .groups = .empty,
+            .group_map = .empty,
+            .allocator = allocator,
+            .rr_counters = .empty,
+            .cache_router = .{ .cache_ttl_ms = 0, .disabled = true },
+            .strategy = strategy,
         };
     }
 
@@ -103,20 +126,24 @@ pub const ModelRouter = struct {
             if (cache_result) |entry| return entry;
         }
 
-        const rr = &self.rr_counters.items[group_idx];
-        const start = rr.* % group.backends.items.len;
-        var i: usize = 0;
-        while (i < group.backends.items.len) : (i += 1) {
-            const try_idx = (start + i) % group.backends.items.len;
-            const pool_idx = group.backends.items[try_idx].pool_index;
-            if (pool_idx < pool.backends.items.len) {
-                const entry = &pool.backends.items[pool_idx];
-                if (entry.health != .healthy) continue;
-                rr.* = @intCast(try_idx + 1);
-                return entry;
+        if (self.strategy == .round_robin) {
+            const rr = &self.rr_counters.items[group_idx];
+            const start = rr.* % group.backends.items.len;
+            var i: usize = 0;
+            while (i < group.backends.items.len) : (i += 1) {
+                const try_idx = (start + i) % group.backends.items.len;
+                const pool_idx = group.backends.items[try_idx].pool_index;
+                if (pool_idx < pool.backends.items.len) {
+                    const entry = &pool.backends.items[pool_idx];
+                    if (entry.health != .healthy) continue;
+                    rr.* = @intCast(try_idx + 1);
+                    return entry;
+                }
             }
+            return null;
         }
-        return null;
+
+        return self.selectFromGroup(pool, group.backends.items);
     }
 
     pub fn selectBackendForModelWithTime(self: *ModelRouter, model: []const u8, pool: *backend_pool.BackendPool, prefix_hash: u64, now_ms: i64) ?*backend_pool.BackendEntry {
@@ -129,20 +156,29 @@ pub const ModelRouter = struct {
             if (cache_result) |entry| return entry;
         }
 
-        const rr = &self.rr_counters.items[group_idx];
-        const start = rr.* % group.backends.items.len;
-        var i: usize = 0;
-        while (i < group.backends.items.len) : (i += 1) {
-            const try_idx = (start + i) % group.backends.items.len;
-            const pool_idx = group.backends.items[try_idx].pool_index;
-            if (pool_idx < pool.backends.items.len) {
-                const entry = &pool.backends.items[pool_idx];
-                if (entry.health != .healthy) continue;
-                rr.* = @intCast(try_idx + 1);
-                return entry;
+        if (self.strategy == .round_robin) {
+            const rr = &self.rr_counters.items[group_idx];
+            const start = rr.* % group.backends.items.len;
+            var i: usize = 0;
+            while (i < group.backends.items.len) : (i += 1) {
+                const try_idx = (start + i) % group.backends.items.len;
+                const pool_idx = group.backends.items[try_idx].pool_index;
+                if (pool_idx < pool.backends.items.len) {
+                    const entry = &pool.backends.items[pool_idx];
+                    if (entry.health != .healthy) continue;
+                    rr.* = @intCast(try_idx + 1);
+                    return entry;
+                }
             }
+            return null;
         }
-        return null;
+
+        return self.selectFromGroup(pool, group.backends.items);
+    }
+
+    fn selectFromGroup(self: *ModelRouter, pool: *backend_pool.BackendPool, backends: []const backend_pool.BackendRef) ?*backend_pool.BackendEntry {
+        _ = self;
+        return pool.selectBackendFromGroup(backends);
     }
 
     pub fn modelNames(self: *ModelRouter, allocator: mem.Allocator) ![]const []const u8 {

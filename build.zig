@@ -149,6 +149,36 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    const bench_mod = b.createModule(.{
+        .root_source_file = b.path("bench/benchmark.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const bench_exe = b.addExecutable(.{
+        .name = "shunt-bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bench/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "benchmark", .module = bench_mod },
+            },
+        }),
+    });
+    b.installArtifact(bench_exe);
+
+    const bench_run_cmd = b.addRunArtifact(bench_exe);
+    if (b.args) |args| {
+        bench_run_cmd.addArgs(args);
+    }
+    const bench_step = b.step("bench", "Run the benchmark suite");
+    bench_step.dependOn(&bench_run_cmd.step);
+
+    const bench_tests = b.addTest(.{
+        .root_module = bench_mod,
+    });
+
     const root_tests = b.addTest(.{
         .root_module = root_mod,
     });
@@ -220,6 +250,7 @@ pub fn build(b: *std.Build) void {
     test_unit_step.dependOn(&b.addRunArtifact(request_id_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(auth_tests).step);
     test_unit_step.dependOn(&b.addRunArtifact(exe_tests).step);
+    test_unit_step.dependOn(&b.addRunArtifact(bench_tests).step);
 
     const integration_mod = b.createModule(.{
         .root_source_file = b.path("tests/integration.zig"),
@@ -260,9 +291,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
     test_step.dependOn(&b.addRunArtifact(integration_tests).step);
     test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
+    test_step.dependOn(&b.addRunArtifact(bench_tests).step);
 
     const fmt_check = b.addFmt(.{
-        .paths = &.{ "src", "tests" },
+        .paths = &.{ "src", "tests", "bench" },
         .check = true,
     });
 
@@ -283,4 +315,5 @@ pub fn build(b: *std.Build) void {
     ci_step.dependOn(&b.addRunArtifact(exe_tests).step);
     ci_step.dependOn(&b.addRunArtifact(integration_tests).step);
     ci_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
+    ci_step.dependOn(&b.addRunArtifact(bench_tests).step);
 }

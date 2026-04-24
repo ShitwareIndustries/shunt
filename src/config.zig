@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const backend_pool = @import("backend_pool");
 
 pub const Config = struct {
     listen_addr: []const u8 = "0.0.0.0:8080",
@@ -22,6 +23,7 @@ pub const Config = struct {
         id: []const u8,
         address: []const u8,
         model: []const u8,
+        backend_type: backend_pool.BackendType = .llama_cpp,
     };
 
     pub const AuthKeyConfig = struct {
@@ -194,6 +196,17 @@ pub fn parse(allocator: mem.Allocator, content: []const u8) ParseError!Config {
                     pending_model.?.address = unquote(val);
                 } else if (mem.eql(u8, key, "model")) {
                     pending_model.?.model = unquote(val);
+                } else if (mem.eql(u8, key, "backend_type")) {
+                    const v = unquote(val);
+                    if (mem.eql(u8, v, "llama_cpp") or mem.eql(u8, v, "llama-cpp")) {
+                        pending_model.?.backend_type = .llama_cpp;
+                    } else if (mem.eql(u8, v, "vllm")) {
+                        pending_model.?.backend_type = .vllm;
+                    } else if (mem.eql(u8, v, "openai")) {
+                        pending_model.?.backend_type = .openai;
+                    } else {
+                        return ParseError.InvalidValue;
+                    }
                 }
             },
             .auth => {
@@ -664,4 +677,111 @@ test "parse TOML config [logging] overrides [balancer] log_level" {
     defer cfg.deinit(allocator);
 
     try std.testing.expectEqualStrings("debug", cfg.log_level);
+}
+
+test "parse TOML config [[models]] backend_type defaults to llama_cpp" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].backend_type == .llama_cpp);
+}
+
+test "parse TOML config [[models]] backend_type = vllm" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "vllm-1"
+        \\address = "http://localhost:8000"
+        \\model = "llama3"
+        \\backend_type = "vllm"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].backend_type == .vllm);
+}
+
+test "parse TOML config [[models]] backend_type = openai" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "openai-1"
+        \\address = "https://api.openai.com"
+        \\model = "gpt-4"
+        \\backend_type = "openai"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].backend_type == .openai);
+}
+
+test "parse TOML config [[models]] backend_type = llama_cpp explicit" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "llama-1"
+        \\address = "http://localhost:8081"
+        \\model = "llama3"
+        \\backend_type = "llama_cpp"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items[0].backend_type == .llama_cpp);
+}
+
+test "parse TOML config [[models]] backend_type invalid returns error" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "b1"
+        \\address = "http://localhost:8081"
+        \\model = "test"
+        \\backend_type = "invalid"
+    ;
+
+    const result = parse(allocator, toml);
+    try std.testing.expect(result == ParseError.InvalidValue);
+}
+
+test "parse TOML config [[models]] mixed backend types" {
+    const allocator = std.testing.allocator;
+    const toml =
+        \\[[models]]
+        \\id = "llama-1"
+        \\address = "http://localhost:8081"
+        \\model = "llama3"
+        \\
+        \\[[models]]
+        \\id = "vllm-1"
+        \\address = "http://localhost:8000"
+        \\model = "llama3"
+        \\backend_type = "vllm"
+        \\
+        \\[[models]]
+        \\id = "openai-1"
+        \\address = "https://api.openai.com"
+        \\model = "gpt-4"
+        \\backend_type = "openai"
+    ;
+
+    var cfg = try parse(allocator, toml);
+    defer cfg.deinit(allocator);
+
+    try std.testing.expect(cfg.models.items.len == 3);
+    try std.testing.expect(cfg.models.items[0].backend_type == .llama_cpp);
+    try std.testing.expect(cfg.models.items[1].backend_type == .vllm);
+    try std.testing.expect(cfg.models.items[2].backend_type == .openai);
 }

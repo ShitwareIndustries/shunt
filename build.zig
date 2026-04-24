@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    config_mod.addImport("backend_pool", backend_pool_mod);
 
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),

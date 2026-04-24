@@ -3,6 +3,8 @@ const mem = std.mem;
 
 pub const HealthStatus = enum { healthy, unhealthy };
 
+pub const BackendType = enum { llama_cpp, vllm, openai };
+
 pub const BackendRef = struct {
     pool_index: usize,
 };
@@ -11,6 +13,7 @@ pub const BackendEntry = struct {
     id: []const u8,
     address: []const u8,
     model: []const u8,
+    backend_type: BackendType = .llama_cpp,
     health: HealthStatus = .healthy,
     consecutive_failures: u32 = 0,
     fail_threshold: u32 = 3,
@@ -19,8 +22,27 @@ pub const BackendEntry = struct {
     slots_total: u32 = 0,
     prefix_affinity: u64 = 0,
     prefix_affinity_updated_at_ms: i64 = 0,
+    connect_timeout_ms: u32 = 5000,
+    request_timeout_ms: u32 = 30000,
 
     pub const NO_AFFINITY: u64 = 0;
+
+    pub fn defaultTimeouts(self: *BackendEntry) void {
+        switch (self.backend_type) {
+            .llama_cpp => {
+                self.connect_timeout_ms = 5000;
+                self.request_timeout_ms = 30000;
+            },
+            .vllm => {
+                self.connect_timeout_ms = 10000;
+                self.request_timeout_ms = 120000;
+            },
+            .openai => {
+                self.connect_timeout_ms = 10000;
+                self.request_timeout_ms = 60000;
+            },
+        }
+    }
 
     pub fn isBusy(self: BackendEntry) bool {
         if (self.slots_total == 0) return false;
@@ -261,4 +283,40 @@ test "BackendEntry hasFreeSlots returns true when idle slots exist" {
 test "BackendEntry hasFreeSlots returns true when slots_total is zero" {
     var entry = BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4", .slots_total = 0 };
     try std.testing.expect(entry.hasFreeSlots());
+}
+
+test "BackendEntry defaults to llama_cpp backend type" {
+    const entry = BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4" };
+    try std.testing.expect(entry.backend_type == .llama_cpp);
+}
+
+test "BackendEntry can be configured with vllm backend type" {
+    const entry = BackendEntry{ .id = "vllm-1", .address = "http://vllm:8000", .model = "llama3", .backend_type = .vllm };
+    try std.testing.expect(entry.backend_type == .vllm);
+}
+
+test "BackendEntry can be configured with openai backend type" {
+    const entry = BackendEntry{ .id = "openai-1", .address = "https://api.openai.com", .model = "gpt-4", .backend_type = .openai };
+    try std.testing.expect(entry.backend_type == .openai);
+}
+
+test "BackendEntry defaultTimeouts sets llama_cpp timeouts" {
+    var entry = BackendEntry{ .id = "test", .address = "http://test:8081", .model = "gpt-4" };
+    entry.defaultTimeouts();
+    try std.testing.expect(entry.connect_timeout_ms == 5000);
+    try std.testing.expect(entry.request_timeout_ms == 30000);
+}
+
+test "BackendEntry defaultTimeouts sets vllm timeouts" {
+    var entry = BackendEntry{ .id = "test", .address = "http://vllm:8000", .model = "llama3", .backend_type = .vllm };
+    entry.defaultTimeouts();
+    try std.testing.expect(entry.connect_timeout_ms == 10000);
+    try std.testing.expect(entry.request_timeout_ms == 120000);
+}
+
+test "BackendEntry defaultTimeouts sets openai timeouts" {
+    var entry = BackendEntry{ .id = "test", .address = "https://api.openai.com", .model = "gpt-4", .backend_type = .openai };
+    entry.defaultTimeouts();
+    try std.testing.expect(entry.connect_timeout_ms == 10000);
+    try std.testing.expect(entry.request_timeout_ms == 60000);
 }
